@@ -1,0 +1,174 @@
+Author: Chris Wacek
+Email: cwacek@cs.georgetown.edu
+Date: 16 Jan, 2013
+
+Inet Topology Tools
+===================
+
+This repository contains a set of tools used to construct network
+topology graphs from traceroute data. Traceroutes from a number
+of vantage points are combined to create a connected graph, where
+each vertex is a point of presence connected to other points of
+presence via links present in trace routes.
+
+Points of presence can be thought to represent access points on
+the internet. They consist of one or more IP addresses present in
+the trace routes. IP addresses are joined to a point of presence
+if the distance between them is very small (< 2.5ms) and they are
+in the same AS and /24.
+
+Installation/Requirements
+-------------------------
+
+The tools are almost entirely written in Python. They are located
+in the bin directory and have a setup script for installing them.
+
+As an aside, if you don't work with Python often, I highly
+recommend installing `virtualenv`. There's a good explanation of
+it [here]( http://iamzed.com/2009/05/07/a-primer-on-virtualenv/ ).
+
+To install simply run `python setup.py install` inside the bin/
+directory. The scripts, all of which begin with 'inet\_graph'
+will then be usable from your path.
+
+### Dependencies
+
+1.  **Redis**
+
+    This package consists of many different scripts which act in
+    concert to produce a network graph from raw traceroute data.
+    In order to make this work (and save a ton of time reading
+    and writing from disk), the code all uses the
+    [Redis]( http://redis.io/ ) key-value store as a backend.
+
+    Redis must be installed and running on whatever machine this
+    is run on. Additionally, the scripts currently just default
+    to using database 0 on the Redis server. If there is an
+    existing Redis server operating, this setting may need to be
+    changed.
+
+2.  **PyPy (optional)**
+
+    Some of the data processing scripts can take a long time to run.
+    They are much faster when run using the PyPy interpreter instead
+    of the standard Python interpreter. You can find more information
+    about, and obtain PyPy, at the [PyPy site]( http://pypy.org/ ).
+
+    Unfortunately, some of the scripts **do not support** PyPy
+    because they use libraries that do not work with PyPy. `lxml` is
+    a big culprit here. As a result, while I recommend you use PyPy
+    for some steps, you do not have to if the idea of switching
+    interpreters makes you lose sleep.
+
+3.  **Assorted Python Libraries**
+
+    The scripts use a variety of Python libraries. Rather than
+    specify them as a global set of dependencies however, each of
+    the scripts is set up to warn if a dependency is not met.
+
+The Tools
+---------
+
+There are a number of different contained in the package, which
+perform different steps of the process. This section provides a
+brief overview of each of them.
+
+### `inet_graph_process_data`
+
+This script does the hard work of processing traceroutes into the
+Redis database and then identifying and joining IP addresses into
+points of presence.
+
+It has a number of subcommands:
+
+-   `dump_ips`
+
+    Dumps the unique set of IP addresses present in a traceroute file.
+
+-   `load_IP_data`
+
+    Before points of presence can be determined information about
+    IP<->AS relationships is needed. This command is designed to
+    load that data into the database so it can be used later.
+
+-   `parse`
+
+    Parses a traceroute file into the database. This process
+    involves a certain amount of normalization, such as removing
+    negative distances and handling missing steps in a traceroute.
+
+    The specifics of normalization are found in TraceParser.py
+
+    This process can be run multiple times in parallel, although
+    there are diminishing returns due to IO requirements and the
+    ability of the Redis backend to handle multiple connections.
+    16 at a time is pretty effective though.
+
+-   `assign_pops`
+
+    Assigns every IP address in the database to a point of
+    presence. This can also be run in parallel, although there
+    are situations where deadlocks occur,  and those have to be
+    deferred when run in parallel. As a result, after parallel
+    processing is complete it must be run one more time with the
+    --process_failed flag.
+
+-   `process_joins`
+
+    Joins any points of presence that were assigned separately
+    but which realistically should be the same point of presence.
+
+### `inet_graph_load_as_relationships`
+
+The sole purpose of this script is to parse the CAIDA [*Inferred
+AS Relationships Dataset*]( http://http://www.caida.org/data/active/as-relationships/index.xml )
+into the Redis database for use with `inet_graph_create`.
+
+### `inet_graph_create`
+
+Utility to produce a GraphML file from traceroute data that has
+been loaded into a local Redis database by `inet_graph_process_data`.
+
+This script performs two actions sequentially:
+
+1.  Loading the network graph from the Redis database and
+    attaching Tor relays, clients and destinations to it based on
+    the data provided.
+
+    This step also performs some slight trimming of the graph by
+    removing unconnected components, trimming degree-1 vertices
+    (dangling edges of the tree), and collapsing degree-two nodes
+    where it can be done without losing data.
+
+    This intermediate graph representation is saved to disk as an
+    GraphML file.  This is important for repeatability, since
+    this first step can take quite a while to perform.
+
+2.  Reducing the size of the network graph. This step can load a
+    previously created intermediate representation using the
+    option or it can take place immediately following step 1.
+
+    At a high level, the network graph is reduced by removing all
+    links that are not on a shortest path between two points of
+    interest. In this case, points of interest are defined as Tor
+    relays, clients, and destinations.
+
+    If AS peering data is available, then each path is checked
+    for valley-freeness, and if it is not valley-free, then a
+    modified shortest-path algorithm is used to find the
+    shortest valley-free path.
+
+    The result of this process is written out as a GraphML file
+    once complete.
+
+### `inet_graph_aspath`
+
+A tool that has nothing to do with constructing the network
+map, but given the resulting output files can be used to
+determine the AS path between two IP addresses within the
+network.
+
+
+
+
+
