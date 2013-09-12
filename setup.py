@@ -15,7 +15,7 @@ setup(
 
     entry_points={
         'inettopology.modules': [
-            'popmap = inettopology.popmap.cmdline'
+            'popmap = inettopology-popmap.cmdline'
         ],
     },
 
