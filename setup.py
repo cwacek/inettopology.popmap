@@ -4,7 +4,7 @@ distribute_setup.use_setuptools()
 from setuptools import setup, find_packages
 
 setup(
-    name="inettopology-popmap",
+    name="inettopology.popmap",
     version="0.1",
     packages=find_packages(),
 
@@ -15,7 +15,7 @@ setup(
 
     entry_points={
         'inettopology.modules': [
-            'popmap = inettopology-popmap.cmdline'
+            'popmap = inettopology_popmap.cmdline'
         ],
     },
 

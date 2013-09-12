@@ -3,11 +3,11 @@ import argparse
 import logging
 logger = logging.getLogger(__name__)
 
-import inettopology.popmap.data
-import inettopology.util
-import inettopology.util.structures
+import inettopology_popmap.data
+import inettopology.util.structures as structures
 
-def add_parsers(subparser, parents):
+
+def __argparse__(subparser, parents=[]):
   """Add parsers for this module to the passed
   in subparser. Include :parents: as parent
   parsers
@@ -25,5 +25,4 @@ def add_parsers(subparser, parents):
   gen_p.add_argument("-v", "--verbose", action='count', default=0)
 
   parents.append(gen_p)
-  inettopology.popmap.data.__argparse__(subparser, parents)
-
+  inettopology_popmap.data.__argparse__(subparser, parents)
