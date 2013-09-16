@@ -36,21 +36,9 @@ Order of Commands
 
 4. process_joins  - (no extra notes)
 """
-
 import argparse
-import importlib
 
-
-def lazy_load(package, function):
-  """ A helper to lazy load functions that start
-  actions to avoid circular references.
-  """
-  def runner(args):
-    module = importlib.import_module("{0}.{1}".format(
-                                     __name__, package))
-    module.__dict__[function](args)
-
-  return runner
+from inettopology_popmap import lazy_load
 
 
 def __argparse__(subparser, parents):

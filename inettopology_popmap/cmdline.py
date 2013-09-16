@@ -4,6 +4,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 import inettopology_popmap.data
+import inettopology_popmap.graph
 import inettopology.util.structures as structures
 
 
@@ -24,4 +25,7 @@ def __argparse__(subparser, parents=[]):
                           "(default: 'localhost:6379:0')")
 
   parents.append(gen_p)
+
   inettopology_popmap.data.__argparse__(subparser, parents)
+
+  inettopology_popmap.graph.__argparse__(subparser, parents)
