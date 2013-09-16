@@ -1,10 +1,9 @@
 """
-
-Used in combination with ProcessTraces. Creates a GraphML file from the data in
+Used in combination with process. Creates a GraphML file from the data in
 a local Redis database.
 
 Utility to produce a GraphML file from traceroute data that has
-been loaded into a local Redis database by inet_graph_process_data.
+been loaded into a local Redis database by 'inettopology popmap process'.
 
 This script performs two actions sequentially:
 
@@ -42,6 +41,12 @@ Email: cwacek@cs.georgetown.edu
 Date: 02/22/202
 """
 
+import argparse
+
+import inettopology
+from inettopology_popmap import lazy_load
+
+
 def __argparse__(subparser, parents):
   """ Add command line subparsers for this module
   to the subparser module provided to this function.
@@ -54,5 +59,109 @@ def __argparse__(subparser, parents):
   :returns: Nothing
   """
 
+  parser = subparser.add_parser('graph',
+                                formatter_class=argparse.RawTextHelpFormatter,
+                                description=__doc__,
+                                parents=parents)
 
-  pass
+  sub = parser.add_subparsers()
+
+  # {cleanup}
+  cleanup_parser = sub.add_parser(
+      "cleanup",
+      help="Cleanup any extraneous keys in the database")
+
+  cleanup_parser.set_defaults(func=lazy_load('cleanup', 'cleanup'))
+
+  # {create}
+  create_parser = sub.add_parser(
+      "create",
+      help="Create a graph")
+
+  # [save|reload]
+  group = create_parser.add_mutually_exclusive_group(required=True)
+  group.add_argument(
+      "--reload",
+      type=str,
+      help="Reload the data from redis. Store the "
+           "GraphML intermediary representation in FILENAME",
+      metavar="FILENAME")
+  group.add_argument(
+      "--xml",
+      type=str,
+      help="Load from the GraphML file FILENAME",
+      metavar="FILENAME")
+
+  create_parser.add_argument(
+      '--save',
+      type=str,
+      help="Save output with this prefix",
+      metavar="PREFIX",
+      required=True)
+
+  create_parser.add_argument(
+      "-c",
+      "--num_clients",
+      help="The number of clients to attach",
+      type=int,
+      dest="num_clients")
+
+  create_parser.add_argument("--client_data",
+                             help="File containing client data",
+                             metavar="CLIENT_DATAFILE")
+
+  create_parser.add_argument("-d", "--num_dests",
+                             help="The number of destinations to attach",
+                             type=int,
+                             dest="num_dests")
+
+  create_parser.add_argument("--dest_data",
+                             help="File containing dest data",
+                             metavar="DEST_DATAFILE")
+
+  create_parser.add_argument(
+      "--tor_relays",
+      help="A file containing ip_address of Tor "
+           "relays to use. One per line followed "
+           "by 'asn <relay_asn>'",
+      metavar="RELAY_FILE")
+
+  create_parser.add_argument(
+      "--log",
+      help="Log output here. Defaults to <save_opt>.log",
+      metavar='<log file>')
+
+  create_parser.set_defaults(
+      func=lazy_load('core', 'create', check_create_args))
+
+
+def check_create_args(args):
+  """ Check the result of argument parsing to find any issues.
+
+  :args: argparse.Namespace containing parsed arguments
+  """
+
+  import logging
+  thislogger = logging.getLogger(__name__)
+
+  logfile = args.log if args.log else '{0}.log'.format(args.save)
+  fh = logging.FileHandler(filename=logfile, level=logging.DEBUG)
+  formatter = logging.Formatter(
+      '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+  fh.setFormatter(formatter)
+
+  thislogger.addHandler(fh)
+
+  def all_if_one(argobj, *required):
+    argsexist = [vars(argobj)[x] for x in required]
+    if any(argsexist) and not all(argsexist):
+      return False
+    return True
+
+  if not all_if_one(args, "client_data", "num_clients"):
+    thislogger.error("'client_data' and 'num_clients' must be given together")
+    raise inettopology.SilentExit()
+
+  if not all_if_one(args, "dest_data", "num_dests"):
+    thislogger.error("'dest_data' and 'num_dests' must be given together")
+    raise inettopology.SilentExit()
