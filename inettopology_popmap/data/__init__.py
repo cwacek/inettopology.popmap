@@ -48,7 +48,6 @@ def lazy_load(package, function):
   def runner(args):
     module = importlib.import_module("{0}.{1}".format(
                                      __name__, package))
-    import pdb; pdb.set_trace()
     module.__dict__[function](args)
 
   return runner
@@ -60,12 +59,17 @@ def __argparse__(subparser, parents):
 
   parser = subparser.add_parser('process',
                                 formatter_class=argparse.RawTextHelpFormatter,
-                                description=__doc__)
+                                description=__doc__,
+                                parents=parents)
   subparsers = parser.add_subparsers()
 
   # {parse} command
   parser_parse = subparsers.add_parser("parse",
-                                       help="Parse Trace Routes")
+                                       help="Parse Trace Routes. "
+                                            "Perform ASN lookups for "
+                                            "IPs as we go.",
+                                       parents=parents)
+
   parser_parse.add_argument("trace",
                             help="CAIDA trace file",
                             metavar="<trace file>")
@@ -73,10 +77,31 @@ def __argparse__(subparser, parents):
       func=lazy_load('process', 'parse'),
       dump=False)
 
+  # {preprocess_traces} command
+  parser_preprocess = subparsers.add_parser(
+      "preprocess_traces",
+      help="Process all of the unique IPs from a traceroute file "
+           "and associate ASN's with them. This needs to be done "
+           "before the traces are parsed. "
+  )
+
+  parser_preprocess.add_argument("--geoipdb",
+                                 help='MaxMind GeoIP Database',
+                                 required=True)
+
+  parser_preprocess.add_argument('tracefiles',
+                                 help='Globbing expression to find'
+                                      'CAIDA trace files')
+
+  parser_preprocess.set_defaults(
+      func=lazy_load('preprocess', 'load_and_lookup_asns')
+  )
+
   # {dump_ips} command
   parser_dump_ips = subparsers.add_parser(
       "dump_ips",
-      help="Dump all IPs from a traceroute file")
+      help="Dump all IPs from a traceroute file",
+      parents=parents)
 
   parser_dump_ips.add_argument("trace",
                                help="CAIDA trace file",
@@ -86,7 +111,8 @@ def __argparse__(subparser, parents):
       dump=True)
 
   parser_process_joins = subparsers.add_parser("process_joins",
-                                               help="Process queued PoP joins")
+                                               help="Process queued PoP joins",
+                                               parents=parents)
   parser_process_joins.add_argument("--log_joins",
                                     type=str, metavar="LOG_FILE")
   parser_process_joins.set_defaults(
@@ -96,7 +122,8 @@ def __argparse__(subparser, parents):
       "load_IP_data",
       formatter_class=argparse.RawTextHelpFormatter,
       help=("Load IP attributes from a file. "
-            "Will not set the 'pop' attribute."))
+            "Will not set the 'pop' attribute."),
+      parents=parents)
   parser_load_asn.add_argument("attr_file",
                                help=("""\
               Attribute file in the form:
@@ -108,11 +135,12 @@ def __argparse__(subparser, parents):
                   <ip> <value> <value1> ... <valueN>
                   """))
   parser_load_asn.set_defaults(
-      func=lazy_load('process', 'load_attr_data'))
+      func=lazy_load('preprocess', 'load_attr_data'))
 
   parser_assign_pops = subparsers.add_parser(
       "assign_pops",
-      help="Assign pops to the loaded links")
+      help="Assign pops to the loaded links",
+      parents=parents)
 
   parser_assign_pops.add_argument("--reset", action="store_true")
 
@@ -127,7 +155,8 @@ def __argparse__(subparser, parents):
   parser_cleanup = subparsers.add_parser(
       "cleanup",
       help="Remove all PoP related info from "
-           "the database (but not the IP data)")
+           "the database (but not the IP data)",
+      parents=parents)
 
   parser_cleanup.add_argument(
       "--ip_links",
