@@ -75,8 +75,8 @@ def cleanup(args):
       p.delete(key)
     result = p.execute()
     for key, res in zip(keys, result):
-      log.info("Deleting '{0}'... {0}".format(
-               Color.wrap('[failure]', Color.FAIL),
+      log.info("Deleting '{0}'... {0}".format(key,
+               Color.wrap('[failure]', Color.FAIL) if not res else
                Color.wrap('[success]', Color.OKBLUE)))
 
   pipelined_delete('poplist',
