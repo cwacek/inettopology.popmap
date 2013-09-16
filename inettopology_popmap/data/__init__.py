@@ -169,4 +169,4 @@ def __argparse__(subparser, parents):
       action='store_true')
 
   parser_cleanup.set_defaults(
-      func=lazy_load('process', 'cleanup'))
+      func=lazy_load('cleanup', 'cleanup'))
