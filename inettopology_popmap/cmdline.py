@@ -22,7 +22,6 @@ def __argparse__(subparser, parents=[]):
                      default={'host': 'localhost', 'port': 6379, 'db': 0},
                      help="Redis connection info for router server "
                           "(default: 'localhost:6379:0')")
-  gen_p.add_argument("-v", "--verbose", action='count', default=0)
 
   parents.append(gen_p)
   inettopology_popmap.data.__argparse__(subparser, parents)
