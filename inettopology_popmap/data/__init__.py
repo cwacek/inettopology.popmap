@@ -70,6 +70,11 @@ def __argparse__(subparser, parents):
                                             "IPs as we go.",
                                        parents=parents)
 
+  parser_parse.add_argument("--geoipdb",
+                            help='MaxMind GeoIP Database to use'
+                                 'for ASN lookups.',
+                            required=True)
+
   parser_parse.add_argument("trace",
                             help="CAIDA trace file",
                             metavar="<trace file>")

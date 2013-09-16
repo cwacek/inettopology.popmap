@@ -2,7 +2,6 @@ import logging
 log = logging.getLogger(__name__)
 
 import sys
-import os
 import itertools
 import redis
 redis_errors = (redis.ConnectionError,
@@ -12,9 +11,9 @@ redis_errors = (redis.ConnectionError,
 from inettopology import SilentExit
 from inettopology.util.general import ProgressTimer, Color
 import inettopology.util.structures as structures
-import inettopology.util.decorators
 import inettopology_popmap.data.dbkeys as dbkeys
-from inettopology_popmap.data.parsers import TraceParser
+from inettopology_popmap.data.parsers import TraceParser, EmptyTraceError
+import inettopology_popmap.data.preprocess as preprocess
 import inettopology_popmap.connection as connection
 
 
@@ -28,8 +27,9 @@ def print_unless_seen(text, seenset):
     seenset.add(text)
 
 
-def load_link_pairs(newpairs):
+def load_link_pairs(newpairs, geoipdb=None):
   r = connection.Redis()
+
   for link in newpairs:
     if link[0] == link[1]:
       raise Exception("Should not happen")
@@ -38,11 +38,18 @@ def load_link_pairs(newpairs):
               dbkeys.delay_key(link[0], link[1]))
     r.sadd(dbkeys.delay_key(link[0], link[1]), link[2])
 
+    r.sadd('iplist', *link)
+    for ip, asn in itertools.izip(link, geoipdb.lookup_ips(link[:2])):
+      r.hmset(dbkeys.ip_key(ip), {'asn': asn})
+
 
 def parse(args):
 
   # We don't use this, but it configures the singleton
   redis_conn = connection.Redis(structures.ConnectionInfo(**args.redis))
+
+  if args.geoipdb is not None:
+    aslookup = preprocess.MaxMindGeoIPReader.Instance(args.geoipdb)
 
   try:
     with open(args.trace) as trace_in:
@@ -59,7 +66,7 @@ def parse(args):
             newpairs, removed = TraceParser.parse(tracehops)
             if removed is not None:
               log.debug("Removed %s" % removed)
-          except TraceParser.EmptyTraceError:
+          except EmptyTraceError:
             tracehops = [line]
             continue
           if not args.dump and dbkeys.mutex_popjoin().is_locked():
@@ -71,7 +78,7 @@ def parse(args):
               print_unless_seen(pair[0], seenset)
               print_unless_seen(pair[1], seenset)
           else:
-            load_link_pairs(newpairs)
+            load_link_pairs(newpairs, geoipdb=aslookup)
 
           tracehops = [line]
         else:
