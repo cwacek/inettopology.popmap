@@ -183,7 +183,7 @@ def process_delayed_joins(args):
                      x,
                      Color.wrapformat("[{0} seconds to finish]",
                                       Color.OKBLUE, timer.eta()),
-                     newl=util.Color.NEWL))
+                     newl=Color.NEWL))
 
   r.delete('delayed_job:popjoins')
   r.delete('delayed_job:popjoins:inprocess')

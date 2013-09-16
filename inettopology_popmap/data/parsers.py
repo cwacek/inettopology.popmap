@@ -17,7 +17,7 @@ class EmptyTraceError(ParseError):
 
 class TraceParser(object):
 
-  ipregex = re.compile("[1-9][0-9]{0, 2}(\.[0-9]{1, 3}){3}")
+  ipregex = re.compile("[1-9][0-9]{0,2}(\.[0-9]{1,3}){3}")
   privateipregex = re.compile("(^127\.0\.0\.1)|(^192\.168)|(^10\.)|(^172\.1[6-9])|(^172\.2[0-9])|(^172\.3[0-1])")
 
   @classmethod
@@ -52,7 +52,7 @@ class TraceParser(object):
       if i == 0:
         try:
           if not cls.ip_is_valid(fields[2]):
-            raise ParseError("Invalid IP in first line of trace: [%s]"
+            raise ParseError("Invalid IP in first line of trace: [{0}]"
                              .format(line))
           transformed.append([fields[2], 0.0])
         except IndexError:
