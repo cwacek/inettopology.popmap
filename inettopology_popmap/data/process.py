@@ -33,16 +33,16 @@ def load_link_pairs(newpairs):
   for link in newpairs:
     if link[0] == link[1]:
       raise Exception("Should not happen")
-    if not r().exists(dbkeys.delay_key(link[0], link[1])):
-      r().lpush("delayed_job:unassigned_links",
-                dbkeys.delay_key(link[0], link[1]))
-    r().sadd(dbkeys.delay_key(link[0], link[1]), link[2])
+    if not r.exists(dbkeys.delay_key(link[0], link[1])):
+      r.lpush("delayed_job:unassigned_links",
+              dbkeys.delay_key(link[0], link[1]))
+    r.sadd(dbkeys.delay_key(link[0], link[1]), link[2])
 
 
 def parse(args):
 
-  redis_conn = connection.Redis()
-  redis_conn.config(structures.ConnectionInfo(**args.redis))
+  # We don't use this, but it configures the singleton
+  redis_conn = connection.Redis(structures.ConnectionInfo(**args.redis))
 
   try:
     with open(args.trace) as trace_in:
