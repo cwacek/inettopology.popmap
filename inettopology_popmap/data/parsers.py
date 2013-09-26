@@ -113,3 +113,34 @@ class TraceParser(object):
           previous[1] = maxval
         else:  # B > C, B > A
           previous[1] = (maxval + previous2[1]) / 2
+
+
+def different_as(r, ip1, ip2, ignore=False):
+    """
+    Return True if r().hget(ip1,'asn') != r().hget(ip2,'asn').
+    Else False
+    Return None if either side of the link has "N/A" for it's
+    ASN
+    """
+    if ignore:
+        return False
+
+    ip1_asn = r.hget(ip1, 'asn')
+    ip2_asn = r.hget(ip2, 'asn')
+
+    if not ip1_asn or not ip2_asn:
+      return None
+
+    return (ip1_asn != ip2_asn)
+
+
+def different_24(ip1, ip2, ignore=False):
+    """
+    Return true if ip1 and ip2 are in different /24s
+    Else false
+    """
+    if ignore:
+        return False
+    ip1_24 = ip1.split('.')[3]
+    ip2_24 = ip2.split('.')[3]
+    return True if ip1_24 != ip2_24 else False

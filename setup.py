@@ -1,6 +1,3 @@
-import distribute_setup
-distribute_setup.use_setuptools()
-
 from setuptools import setup, find_packages
 
 setup(
@@ -17,6 +14,10 @@ setup(
         'inettopology.modules': [
             'popmap = inettopology_popmap.cmdline'
         ],
+    },
+
+    package_data={
+        'inettopology_popmap': 'resources/*.dat'
     },
 
     author="Chris Wacek",

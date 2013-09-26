@@ -13,11 +13,13 @@ from inettopology.util.general import ProgressTimer, Color
 import inettopology.util.structures as structures
 import inettopology_popmap.data.dbkeys as dbkeys
 from inettopology_popmap.data.parsers import TraceParser, EmptyTraceError
+from inettopology_popmap.data.parsers import different_24, different_as
 import inettopology_popmap.data.preprocess as preprocess
 import inettopology_popmap.connection as connection
+from inettopology_popmap.data import DataError
 
 
-class DataError(Exception):
+class NoPopExistsError(Exception):
   pass
 
 
@@ -46,10 +48,10 @@ def load_link_pairs(newpairs, geoipdb=None):
 def parse(args):
 
   # We don't use this, but it configures the singleton
-  redis_conn = connection.Redis(structures.ConnectionInfo(**args.redis))
+  connection.Redis(structures.ConnectionInfo(**args.redis))
 
   if args.geoipdb is not None:
-    aslookup = preprocess.MaxMindGeoIPReader.Instance(args.geoipdb)
+    aslookup = preprocess.MaxMindGeoIPReader.Instance()
 
   try:
     with open(args.trace) as trace_in:
@@ -128,6 +130,7 @@ def descend_target_chain(r, target):
 
 
 def process_delayed_joins(args):
+  log.info("Processing delayed joins")
   r = connection.Redis()
   if r.llen("delayed_job:unassigned_link_fails") > 0:
     sys.stderr.write("Have unassigned links. "
@@ -154,7 +157,7 @@ def process_delayed_joins(args):
     log.info("Joining %s to %s\n" % (to_join[1], to_join[0]))
 
     try:
-      joined = join_pops(r(), to_join[0], to_join[1])
+      joined = join_pops(r, to_join[0], to_join[1])
     except redis_errors as e:
       log.error("Encountered error while processing: {0}. [{1}]\n"
                 .format(to_join, e))
@@ -169,7 +172,7 @@ def process_delayed_joins(args):
       if (r.sismember(dbkeys.POP.list(), to_join[1])
          or r.exists(dbkeys.POP.members(to_join[1]))):
 
-        if descend_target_chain(r(), to_join[0]) != to_join[1]:
+        if descend_target_chain(r, to_join[0]) != to_join[1]:
           raise Exception("Join Failed in ways it should not have...")
         else:
           log.info("Did not join {0} to {1} because {2} had "
@@ -303,6 +306,8 @@ def join_pops(r, newpop, oldpop):
   store_link(r, map(eval, r.smembers(dbkeys.Link.intralink(oldpop))),
              newpop, pipe=pipe, multi=True)
 
+  pipe.sunionstore(dbkeys.POP.countries(newpop), dbkeys.POP.countries(oldpop))
+
   # Update the pop value for every member of oldpop, and move it to newpop
   for member in members:
     pipe.hset(dbkeys.ip_key(member), 'pop', newpop)
@@ -310,6 +315,7 @@ def join_pops(r, newpop, oldpop):
 
   # Clean up oldpop
   pipe.delete(dbkeys.POP.members(oldpop))
+  pipe.delete(dbkeys.POP.countries(oldpop))
   pipe.delete(dbkeys.POP.neighbors(oldpop))
   pipe.delete(dbkeys.Link.intralink(oldpop))
   pipe.srem(dbkeys.ASN.pops(popas), oldpop)
@@ -340,3 +346,185 @@ def store_link(r, link, pop1, pop2=None, pipe=None, multi=False):
 
   if pipe is None:
     p.execute()
+
+
+def assign_pops(args):
+  r = connection.Redis()
+  if args.reset:
+    log.info("Resetting processed_links")
+    if r.llen("delayed_job:unassigned_links") == 0:
+      r.rename("delayed_job:processed_links", "delayed_job:unassigned_links")
+    else:
+      while r.rpoplpush("delayed_job:processed_links",
+                        "delayed_job:unassigned_links"):
+        pass
+    r.delete("delayed_job:unassigned_link_fails")
+    return
+
+  if args.process_failed:
+    log.info("Processing failed links")
+    dbkeys.mutex_popjoin().acquire()
+    _assign_pops("delayed_job:unassigned_link_fails",
+                 "delayed_job:unassigned_link_fails2",
+                 no_add_processed=True)
+
+    if r.exists("delayed_job:unassigned_link_fails2"):
+      r.rename("delayed_job:unassigned_link_fails2",
+               "delayed_job:unassigned_link_fails")
+
+    dbkeys.mutex_popjoin().release()
+    log.info("Complete")
+    return
+
+  _assign_pops("delayed_job:unassigned_links",
+               "delayed_job:unassigned_link_fails")
+
+
+def _assign_pops(unassigned_list_key, failed_list_key,
+                 no_add_processed=False):
+  """ Assign all of the IP addresses found in the redis list
+  :unassigned_list_key:. If any fail, put them in the redis list
+  :failed_list_key.
+
+  Store processed links in 'delayed_job:processed_links' unless
+  :no_add_processed: is False
+  """
+
+  r = connection.Redis()
+
+  while r.llen(unassigned_list_key) > 0:
+    try:
+      if no_add_processed:
+        link = r.rpop(unassigned_list_key)
+      else:
+        link = r.rpoplpush(unassigned_list_key, "delayed_job:processed_links")
+      ip1, ip2 = link.split(":")[2:]
+      cross_as = different_as(r, dbkeys.ip_key(ip1), dbkeys.ip_key(ip2))
+      cross_24 = different_24(r, ip1, ip2)
+
+      if cross_as is None:
+        # This means that one side of this link has no AS. We don't want it
+       continue
+
+      if dbkeys.get_delay(link) > 2.5 or cross_as or cross_24:
+        success = handle_cross_pop_link(link)
+      else:
+        success = handle_same_pop_link(link)
+
+      log.info("Assigning PoPs. Remaining: [{0}]. "
+               "Deferred for join: [{1}]".format(
+                   Color.wrap(r.llen(unassigned_list_key), Color.OKBLUE),
+                   Color.wrap(r.llen('delayed_job:popjoins'), Color.HEADER)))
+
+      if not success:
+        assert_pops_ok(r, ip1, ip2)
+        r.lpush(failed_list_key, link)
+
+    except DataError as e:
+      log.error("Fatal Error - Resetting: " + e)
+      args = object()
+      args.reset = True
+      return assign_pops(args)
+
+
+def handle_cross_pop_link(link):
+  """ Handle a situation where the two IPs on either end of a
+  link should be in different PoPs.
+
+  - Neither has a PoP assigned
+    - Assign two new PoPs, and create links:inter
+  - One side has a PoP assigned
+    - Assign 1 new PoP and create links:inter
+  -  Both sides have a PoP assigned
+    - Add it to the links:inter
+  """
+  r = connection.Redis()
+
+  ip1, ip2 = link.split(":")[2:]
+
+  with r.pipeline() as pipe:
+    try:
+      pipe.watch(dbkeys.ip_key(ip1))
+      pipe.watch(dbkeys.ip_key(ip2))
+      pop1 = dbkeys.get_pop(ip1, pipe=pipe)
+      pop2 = dbkeys.get_pop(ip2, pipe=pipe)
+      pipe.multi()
+
+      if pop1 is None and pop2 is None:
+        pop1 = dbkeys.setpopnumber(dbkeys.mutex_popnum(), ip1, pipe=pipe)
+        pop2 = dbkeys.setpopnumber(dbkeys.mutex_popnum(), ip2, pipe=pipe)
+
+      elif pop1 is not None and pop2 is not None:
+        pass
+      else:
+        if pop1 is None:
+          pop1 = dbkeys.setpopnumber(dbkeys.mutex_popnum(), ip1, pipe=pipe)
+        else:
+          pop2 = dbkeys.setpopnumber(dbkeys.mutex_popnum(), ip2, pipe=pipe)
+      store_link(r, (ip1, ip2), pop1, pop2, pipe=pipe)
+
+      pipe.execute()
+      return True
+    except redis.WatchError:
+      return False
+    finally:
+      pipe.reset()
+
+
+def handle_same_pop_link(link):
+  """ Handle links which should belong to the same PoP
+
+  a. Neither has a PoP assigned
+    - Assign both the same pop and set links:intra
+  b. One side has a PoP assigned
+    - Assign the other one the existing PoP and add links:intra
+  c. Both sides have a PoP assigned
+    - add to delayed_job:popjoins
+  """
+  r = connection.Redis()
+
+  ip1, ip2 = link.split(":")[2:]
+
+  with r.pipeline() as pipe:
+    try:
+      pipe.watch(dbkeys.ip_key(ip1))
+      pipe.watch(dbkeys.ip_key(ip2))
+      pop1 = dbkeys.get_pop(ip1, pipe=pipe)
+      pop2 = dbkeys.get_pop(ip2, pipe=pipe)
+      pipe.multi()
+
+      if pop1 is None and pop2 is None:
+        pop1 = dbkeys.setpopnumber(dbkeys.mutex_popnum(), ip1, pipe=pipe)
+        pipe.hset(dbkeys.ip_key(ip2), 'pop', pop1)
+        pipe.sadd(dbkeys.POP.members(pop1), ip2)
+
+        store_link(r, (ip1, ip2), pop1, pipe=pipe)
+      elif pop1 is not None and pop2 is not None:
+        if not r.sismember('delayed_job:popjoins:known', (pop1, pop2)):
+          pipe.lpush("delayed_job:popjoins", (pop1, pop2))
+          pipe.sadd('delayed_job:popjoins:known', (pop1, pop2))
+      else:
+        if pop1 is None:
+          knownpop = pop2
+          pipe.hset(dbkeys.ip_key(ip1), 'pop', knownpop)
+          pipe.sadd(dbkeys.POP.members(knownpop), ip1)
+        else:
+          knownpop = pop1
+          pipe.hset(dbkeys.ip_key(ip2), 'pop', knownpop)
+          pipe.sadd(dbkeys.POP.members(knownpop), ip2)
+        store_link(r, (ip1, ip2), knownpop, pipe=pipe)
+
+      pipe.execute()
+      return True
+    except redis.WatchError:
+      return False
+    finally:
+      pipe.reset()
+
+
+def assert_pops_ok(r, *ips):
+  for ip in ips:
+    pop = dbkeys.get_pop(ip)
+    if pop is not None and not r.sismember('poplist', pop):
+      raise NoPopExistsError(
+          "ip %s has pop of %s, which doesn't exist" % (ip, pop))

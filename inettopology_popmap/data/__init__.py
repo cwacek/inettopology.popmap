@@ -41,6 +41,10 @@ import argparse
 from inettopology_popmap import lazy_load
 
 
+class DataError(Exception):
+  pass
+
+
 def __argparse__(subparser, parents):
   """ Add the argparse cmdline arguments for data processing
   to the subparser """
@@ -67,41 +71,21 @@ def __argparse__(subparser, parents):
                             help="CAIDA trace file",
                             metavar="<trace file>")
   parser_parse.set_defaults(
-      func=lazy_load('process', 'parse'),
+      func=lazy_load('data.process', 'parse'),
       dump=False)
 
-  # {preprocess_traces} command
-  parser_preprocess = subparsers.add_parser(
-      "preprocess_traces",
-      help="Process all of the unique IPs from a traceroute file "
-           "and associate ASN's with them. This needs to be done "
-           "before the traces are parsed. "
-  )
+   #{dump_ips} command
+  #parser_dump_ips = subparsers.add_parser(
+      #"dump_ips",
+      #help="Dump all IPs from a traceroute file",
+      #parents=parents)
 
-  parser_preprocess.add_argument("--geoipdb",
-                                 help='MaxMind GeoIP Database',
-                                 required=True)
-
-  parser_preprocess.add_argument('tracefiles',
-                                 help='Globbing expression to find'
-                                      'CAIDA trace files')
-
-  parser_preprocess.set_defaults(
-      func=lazy_load('preprocess', 'load_and_lookup_asns')
-  )
-
-  # {dump_ips} command
-  parser_dump_ips = subparsers.add_parser(
-      "dump_ips",
-      help="Dump all IPs from a traceroute file",
-      parents=parents)
-
-  parser_dump_ips.add_argument("trace",
-                               help="CAIDA trace file",
-                               metavar="<trace file>")
-  parser_dump_ips.set_defaults(
-      func=lazy_load('process', 'parse'),
-      dump=True)
+  #parser_dump_ips.add_argument("trace",
+                               #help="CAIDA trace file",
+                               #metavar="<trace file>")
+  #parser_dump_ips.set_defaults(
+      #func=lazy_load('process', 'parse'),
+      #dump=True)
 
   parser_process_joins = subparsers.add_parser("process_joins",
                                                help="Process queued PoP joins",
@@ -109,26 +93,26 @@ def __argparse__(subparser, parents):
   parser_process_joins.add_argument("--log_joins",
                                     type=str, metavar="LOG_FILE")
   parser_process_joins.set_defaults(
-      func=lazy_load('process', 'process_delayed_joins'))
+      func=lazy_load('data.process', 'process_delayed_joins'))
 
-  parser_load_asn = subparsers.add_parser(
-      "load_IP_data",
-      formatter_class=argparse.RawTextHelpFormatter,
-      help=("Load IP attributes from a file. "
-            "Will not set the 'pop' attribute."),
-      parents=parents)
-  parser_load_asn.add_argument("attr_file",
-                               help=("""\
-              Attribute file in the form:
-                  <ip> <key> <value> <key2> <value2> ...
-                  <ip> <key> <value> <key2> <value2> ...
-              OR the form:
-                  # <key> <key2> ... <keyN>
-                  <ip> <value> <value1> ... <valueN>
-                  <ip> <value> <value1> ... <valueN>
-                  """))
-  parser_load_asn.set_defaults(
-      func=lazy_load('preprocess', 'load_attr_data'))
+  #parser_load_asn = subparsers.add_parser(
+      #"load_IP_data",
+      #formatter_class=argparse.RawTextHelpFormatter,
+      #help=("Load IP attributes from a file. "
+            #"Will not set the 'pop' attribute."),
+      #parents=parents)
+  #parser_load_asn.add_argument("attr_file",
+                               #help=("""\
+              #Attribute file in the form:
+                  #<ip> <key> <value> <key2> <value2> ...
+                  #<ip> <key> <value> <key2> <value2> ...
+              #OR the form:
+                   #<key> <key2> ... <keyN>
+                  #<ip> <value> <value1> ... <valueN>
+                  #<ip> <value> <value1> ... <valueN>
+                  #"""))
+  #parser_load_asn.set_defaults(
+      #func=lazy_load('preprocess', 'load_attr_data'))
 
   parser_assign_pops = subparsers.add_parser(
       "assign_pops",
@@ -143,7 +127,7 @@ def __argparse__(subparser, parents):
       help="Process any links that were skipped in the initial run.")
 
   parser_assign_pops.set_defaults(
-      func=lazy_load('process', 'assign_pops'))
+      func=lazy_load('data.process', 'assign_pops'))
 
   parser_cleanup = subparsers.add_parser(
       "cleanup",

@@ -1,4 +1,5 @@
 import re
+import pkg_resources
 import logging
 log = logging.getLogger(__name__)
 
@@ -11,9 +12,12 @@ import inettopology.util.decorators
 @inettopology.util.decorators.singleton
 class MaxMindGeoIPReader(object):
 
-  def __init__(self, fname):
+  def __init__(self):
     try:
       import pygeoip
+      import pdb; pdb.set_trace()
+      fname = pkg_resources.resource_filename('inettopology_popmap',
+                                              'GeoIPASNum.dat')
       self._db = pygeoip.GeoIP(fname, pygeoip.MEMORY_CACHE)
     except IOError, e:
       raise Exception("Failed to open GeoIP database [{0}]".format(e))
@@ -23,6 +27,9 @@ class MaxMindGeoIPReader(object):
 
   def lookup_ips(self, ips):
     return map(self._db.org_by_addr, ips)
+
+  def lookup_country_codes(self, ips):
+    return map(self._db.country_code_by_addr, ips)
 
 
 def load_attr_data(args):
