@@ -15,10 +15,13 @@ class MaxMindGeoIPReader(object):
   def __init__(self):
     try:
       import pygeoip
-      import pdb; pdb.set_trace()
-      fname = pkg_resources.resource_filename('inettopology_popmap',
+      fname = pkg_resources.resource_filename('inettopology_popmap.resources',
                                               'GeoIPASNum.dat')
-      self._db = pygeoip.GeoIP(fname, pygeoip.MEMORY_CACHE)
+      self.asn_db = pygeoip.GeoIP(fname, pygeoip.MEMORY_CACHE)
+
+      fname = pkg_resources.resource_filename('inettopology_popmap.resources',
+                                              'GeoIP.dat')
+      self.cc_db = pygeoip.GeoIP(fname, pygeoip.MEMORY_CACHE)
     except IOError, e:
       raise Exception("Failed to open GeoIP database [{0}]".format(e))
     except ImportError:
@@ -26,10 +29,10 @@ class MaxMindGeoIPReader(object):
                       "'pip install pygeoip'")
 
   def lookup_ips(self, ips):
-    return map(self._db.org_by_addr, ips)
+    return map(self.asn_db.org_by_addr, ips)
 
   def lookup_country_codes(self, ips):
-    return map(self._db.country_code_by_addr, ips)
+    return map(self.cc_db.country_code_by_addr, ips)
 
 
 def load_attr_data(args):

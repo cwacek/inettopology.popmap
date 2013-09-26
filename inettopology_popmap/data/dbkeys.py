@@ -5,7 +5,6 @@ log = logging.getLogger(__name__)
 import inettopology.util.decorators
 import inettopology.util.structures as structures
 import inettopology_popmap.connection as connection
-import inettopology_popmap.data.preprocess as preprocess
 from inettopology_popmap.data import DataError
 
 
@@ -59,6 +58,7 @@ def setpopnumber(mutex, key, pipe=None):
     raise DataError("IP '%s' is missing an ASN" % key)
 
   try:
+    import inettopology_popmap.data.preprocess as preprocess
     aslookup = preprocess.MaxMindGeoIPReader.Instance()
     cc = aslookup.lookup_country_codes(key)
     p.sadd(POP.countries(pop), *cc)

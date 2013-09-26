@@ -50,10 +50,9 @@ def parse(args):
   # We don't use this, but it configures the singleton
   connection.Redis(structures.ConnectionInfo(**args.redis))
 
-  if args.geoipdb is not None:
+  try:
     aslookup = preprocess.MaxMindGeoIPReader.Instance()
 
-  try:
     with open(args.trace) as trace_in:
       tracehops = []
       seenset = set()
