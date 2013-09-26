@@ -139,66 +139,72 @@ def process_delayed_joins(args):
   # Now we process any joins that need to happen. First we lock.
   error_ctr = 0
   dbkeys.mutex_popjoin().acquire()
-  joinlist = preprocess_joins()
-  inprocess = list()
-  x = len(joinlist)
-  log.info("Joining pop pairs: %d".format(x))
+  try:
+    joinlist = preprocess_joins()
+    inprocess = list()
+    x = len(joinlist)
+    log.info("Joining pop pairs: %d".format(x))
 
-  fh = None
-  if args.log_joins:
-    fh = logging.FileHandler(args.log_joins, mode='w')
-    fh.setLevel(logging.DEBUG)
-    fh.setFormatter(logging.Formatter('%(message)s'))
-    log.addHandler(fh)
+    fh = None
+    if args.log_joins:
+      fh = logging.FileHandler(args.log_joins, mode='w')
+      fh.setLevel(logging.DEBUG)
+      fh.setFormatter(logging.Formatter('%(message)s'))
+      log.addHandler(fh)
 
-  timer = ProgressTimer(x)
-  for i, to_join in enumerate(joinlist):
-    inprocess.append(to_join)
-    log.info("Joining %s to %s\n" % (to_join[1], to_join[0]))
+    timer = ProgressTimer(x)
+    for i, to_join in enumerate(joinlist):
+      inprocess.append(to_join)
+      log.info("Joining %s to %s\n" % (to_join[1], to_join[0]))
 
-    try:
-      joined = join_pops(r, to_join[0], to_join[1])
-    except redis_errors as e:
-      log.error("Encountered error while processing: {0}. [{1}]\n"
-                .format(to_join, e))
-      joinlist.insert(0, inprocess.pop())
-      error_ctr += 1
-      continue
+      try:
+        joined = join_pops(r, to_join[0], to_join[1])
+      except redis_errors as e:
+        log.error("Encountered error while processing: {0}. [{1}]\n"
+                  .format(to_join, e))
+        joinlist.insert(0, inprocess.pop())
+        error_ctr += 1
+        continue
 
-    else:
-      if joined is not None:
-        log.info("Joined %s to %s\n" % (joined[1], joined[0]))
+      else:
+        if joined is not None:
+          log.info("Joined %s to %s\n" % (joined[1], joined[0]))
 
-      if (r.sismember(dbkeys.POP.list(), to_join[1])
-         or r.exists(dbkeys.POP.members(to_join[1]))):
+        if (r.sismember(dbkeys.POP.list(), to_join[1])
+           or r.exists(dbkeys.POP.members(to_join[1]))):
 
-        if descend_target_chain(r, to_join[0]) != to_join[1]:
-          raise Exception("Join Failed in ways it should not have...")
-        else:
-          log.info("Did not join {0} to {1} because {2} had "
-                   "previously been joined to {3}\n"
-                   .format(to_join[1], to_join[0], to_join[0], to_join[1]))
-      timer.tick(1)
+          if descend_target_chain(r, to_join[0]) != to_join[1]:
+            raise Exception("Join Failed in ways it should not have...")
+          else:
+            log.info("Did not join {0} to {1} because {2} had "
+                     "previously been joined to {3}\n"
+                     .format(to_join[1], to_join[0], to_join[0], to_join[1]))
+        timer.tick(1)
 
-    x = len(joinlist) - i
+      x = len(joinlist) - i
 
-    sys.stderr.write("{newl} {0} joins left {1}".format(
-                     x,
-                     Color.wrapformat("[{0} seconds to finish]",
-                                      Color.OKBLUE, timer.eta()),
-                     newl=Color.NEWL))
+      sys.stderr.write("{newl} {0} joins left {1}\n".format(
+                       x,
+                       Color.wrapformat("[{0} seconds to finish]",
+                                        Color.OKBLUE, timer.eta()),
+                       newl=Color.NEWL))
 
-  r.delete('delayed_job:popjoins')
-  r.delete('delayed_job:popjoins:inprocess')
-  r.delete(r.keys(dbkeys.POP.joined("*")))
-  dbkeys.mutex_popjoin().release()
-  log.info("Joined pops with %d errors while processing" % error_ctr)
+    r.delete('delayed_job:popjoins')
+    r.delete('delayed_job:popjoins:inprocess')
+    r.delete(r.keys(dbkeys.POP.joined("*")))
+    log.info("Joined pops with %d errors while processing" % error_ctr)
 
-  if fh is not None:
-    log.removeHandler(fh)
+    if fh is not None:
+      log.removeHandler(fh)
+
+  except KeyboardInterrupt:
+    pass
+  finally:
+    dbkeys.mutex_popjoin.release()
 
 
 def preprocess_joins():
+  log.debug("Determining how many joins to preprocess")
   r = connection.Redis()
   numjoins = r.llen('delayed_job:popjoins')
   joins = map(eval, r.lrange('delayed_job:popjoins', 0, -1))
@@ -231,7 +237,7 @@ def preprocess_joins():
     if i % 100 == 0:
       timer.tick(100)
       sys.stderr.write(Color.NEWL + "PreProcessing joins {0}"
-                       .format(Color.wrapformat("[ETA: {1} seconds]",
+                       .format(Color.wrapformat("[ETA: {0} seconds]",
                                                 Color.OKBLUE, timer.eta())))
 
   sys.stderr.write(Color.NEWL +

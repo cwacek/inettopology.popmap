@@ -74,19 +74,6 @@ def __argparse__(subparser, parents):
       func=lazy_load('data.process', 'parse'),
       dump=False)
 
-   #{dump_ips} command
-  #parser_dump_ips = subparsers.add_parser(
-      #"dump_ips",
-      #help="Dump all IPs from a traceroute file",
-      #parents=parents)
-
-  #parser_dump_ips.add_argument("trace",
-                               #help="CAIDA trace file",
-                               #metavar="<trace file>")
-  #parser_dump_ips.set_defaults(
-      #func=lazy_load('process', 'parse'),
-      #dump=True)
-
   parser_process_joins = subparsers.add_parser("process_joins",
                                                help="Process queued PoP joins",
                                                parents=parents)
@@ -94,25 +81,6 @@ def __argparse__(subparser, parents):
                                     type=str, metavar="LOG_FILE")
   parser_process_joins.set_defaults(
       func=lazy_load('data.process', 'process_delayed_joins'))
-
-  #parser_load_asn = subparsers.add_parser(
-      #"load_IP_data",
-      #formatter_class=argparse.RawTextHelpFormatter,
-      #help=("Load IP attributes from a file. "
-            #"Will not set the 'pop' attribute."),
-      #parents=parents)
-  #parser_load_asn.add_argument("attr_file",
-                               #help=("""\
-              #Attribute file in the form:
-                  #<ip> <key> <value> <key2> <value2> ...
-                  #<ip> <key> <value> <key2> <value2> ...
-              #OR the form:
-                   #<key> <key2> ... <keyN>
-                  #<ip> <value> <value1> ... <valueN>
-                  #<ip> <value> <value1> ... <valueN>
-                  #"""))
-  #parser_load_asn.set_defaults(
-      #func=lazy_load('preprocess', 'load_attr_data'))
 
   parser_assign_pops = subparsers.add_parser(
       "assign_pops",
