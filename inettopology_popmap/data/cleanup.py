@@ -2,7 +2,7 @@ import logging
 log = logging.getLogger(__name__)
 
 import inettopology_popmap.connection as connection
-import inettopology_popmap.data.dbkeys as dbkeys
+from inettopology_popmap.data import dbkeys
 import inettopology.util.structures as structures
 from inettopology.util.general import Color
 

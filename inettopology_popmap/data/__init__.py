@@ -16,15 +16,10 @@ sc_warts2text command contained in the scamper package (not included).
 
 Order of Commands
 -----------------
-1. load_IP_data  -  There must be at least an 'asn'
-                    key for every IP in the traceroutes.
-                    To obtain a list of the IPs in
-                    the traceroutes, try 'dump_ips'.
-
-2. parse         -  This can be parallelized (i.e. you
+1. parse         -  This can be parallelized (i.e. you
                     can many of these processes at once).
 
-3. assign_pops   -  This can also be parallelized, with
+2. assign_pops   -  This can also be parallelized, with
                     one caveat. If several are run
                     simultaneously, this command must be
                     run again (only one instance), with
@@ -34,7 +29,7 @@ Order of Commands
                     all of the pop assignments, use the
                     '--reset' flag.
 
-4. process_joins  - (no extra notes)
+3. process_joins  - (no extra notes)
 """
 import argparse
 
@@ -62,10 +57,10 @@ def __argparse__(subparser, parents):
                                             "IPs as we go.",
                                        parents=parents)
 
-  parser_parse.add_argument("--geoipdb",
-                            help='MaxMind GeoIP Database to use'
-                                 'for ASN lookups.',
-                            required=True)
+  #parser_parse.add_argument("--geoipdb",
+                            #help='MaxMind GeoIP Database to use'
+                                 #'for ASN lookups.',
+                            #required=True)
 
   parser_parse.add_argument("trace",
                             help="CAIDA trace file",
@@ -109,4 +104,4 @@ def __argparse__(subparser, parents):
       action='store_true')
 
   parser_cleanup.set_defaults(
-      func=lazy_load('cleanup', 'cleanup'))
+      func=lazy_load('data.cleanup', 'cleanup'))

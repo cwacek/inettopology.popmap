@@ -32,7 +32,10 @@ class MaxMindGeoIPReader(object):
     return map(self.asn_db.org_by_addr, ips)
 
   def lookup_country_codes(self, ips):
-    return map(self.cc_db.country_code_by_addr, ips)
+    if isinstance(ips, basestring):
+      return map(self.cc_db.country_code_by_addr, (ips,))
+    else:
+      return map(self.cc_db.country_code_by_addr, ips)
 
 
 def load_attr_data(args):

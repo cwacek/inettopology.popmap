@@ -1,4 +1,5 @@
 import importlib
+import inettopology
 
 
 def lazy_load(package, function, check_args=None):
@@ -14,6 +15,9 @@ def lazy_load(package, function, check_args=None):
 
     module = importlib.import_module("{0}.{1}".format(
                                      __name__, package))
-    module.__dict__[function](args)
+    try:
+      module.__dict__[function](args)
+    except KeyboardInterrupt:
+      raise inettopology.SilentExit()
 
   return runner
