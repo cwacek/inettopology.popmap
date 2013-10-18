@@ -199,7 +199,7 @@ def process_delayed_joins(args):
   except KeyboardInterrupt:
     pass
   finally:
-    dbkeys.mutex_popjoin.release()
+    dbkeys.mutex_popjoin().release()
 
 
 def preprocess_joins():

@@ -71,7 +71,7 @@ def __argparse__(subparser, parents):
       "cleanup",
       help="Cleanup any extraneous keys in the database")
 
-  cleanup_parser.set_defaults(func=lazy_load('cleanup', 'cleanup'))
+  cleanup_parser.set_defaults(func=lazy_load('graph.cleanup', 'cleanup'))
 
   # {create}
   create_parser = sub.add_parser(
@@ -110,14 +110,13 @@ def __argparse__(subparser, parents):
                              help="File containing client data",
                              metavar="CLIENT_DATAFILE")
 
-  create_parser.add_argument("-d", "--num_dests",
-                             help="The number of destinations to attach",
-                             type=int,
-                             dest="num_dests")
-
-  create_parser.add_argument("--dest_data",
-                             help="File containing dest data",
-                             metavar="DEST_DATAFILE")
+  create_parser.add_argument(
+      "-d", "--num_dests",
+      help="The number of destinations to "
+           "attach. Destinations are drawn from the IP addresses "
+           "used by the Alexa top 10000 sites",
+      type=int,
+      dest="num_dests")
 
   create_parser.add_argument(
       "--tor_relays",
