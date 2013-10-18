@@ -4,6 +4,7 @@ log = logging.getLogger(__name__)
 import sys
 import time
 import networkx as nx
+import pkg_resources
 import operator
 import random
 import multiprocess
@@ -214,12 +215,10 @@ def load_from_redis(r, args):
     log.info("Attaching destinations to graph.")
     #Add dests
     if args.num_dests:
-        dests_attached, dest_attach_points = add_asn_endpoints(
+        dests_attached, dest_attach_points = add_alexa_destinations(
             vertices,
             graphlinks,
-            args.dest_data,
-            args.num_dests,
-            'dest')
+            args.num_dests)
 
     log.info("Attached %s dests to %s attachment points".format(
         dests_attached, dest_attach_points))
@@ -401,6 +400,55 @@ def load_from_redis(r, args):
       log.info("{0}: {1}".format(key, val))
 
     return gr
+
+
+def add_alexa_destinations(vertex_list, linklist, count):
+    """
+    Add potential destination endpoints based on the top 10000 destinations
+    """
+    r = connection.Redis()
+    attached = 0
+    with pkg_resources.resource('inettopology_popmap.resources',
+                                'alexa_top_dests.txt') as destlist:
+
+      for line in destlist:
+        url, ip = line.split()
+
+        db_ip_pop = dbkeys.get_pop()
+
+        if db_ip_pop is None:
+          log.warn("Couldn't attach {0} with ip {1}. No matching IP found"
+                   .format(url, ip))
+
+        nodeid = "dest_{0}".format(ip.replace('.', '_'))
+        if nodeid in vertex_list:
+          continue  # Don't add the same url twice
+
+        vertex_list.add_vertex(nodeid,
+                               nodeid=nodeid,
+                               nodetype="dest",
+                               url=url)
+
+        linkkey = dbkeys.Link.intralink(db_ip_pop)
+
+        linkdelays = sorted(
+            [delay
+             for edge in r.smembers(linkkey)
+             for delay in r.smembers(dbkeys.delay_key(*eval(edge)))])
+
+        try:
+          latency = decile_transform(linkdelays)
+        except graph_objects.EmptyListError:
+          latency = [5 for x in xrange(10)]
+
+        linklist.append(
+            EdgeLink(nodeid,
+                     db_ip_pop,
+                     {'latency': latency}))
+
+        attached += 1
+        if attached >= count:
+          break
 
 
 def add_asn_endpoints(vertex_list, linklist, datafile, count, endpointtype):
