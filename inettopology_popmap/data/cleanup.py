@@ -7,6 +7,17 @@ import inettopology.util.structures as structures
 from inettopology.util.general import Color
 
 
+def pipelined_delete(r, *keys):
+  p = r.pipeline()
+  for key in keys:
+    p.delete(key)
+  result = p.execute()
+  for key, res in zip(keys, result):
+    log.info("Deleting '{0}'... {0}".format(key,
+             Color.wrap('[failure]', Color.FAIL) if not res else
+             Color.wrap('[success]', Color.OKBLUE)))
+
+
 def cleanup(args):
   """
   Clean all of the pop and link related information out of the database.
@@ -69,17 +80,8 @@ def cleanup(args):
     result = p.execute()
     write_failed(result)
 
-  def pipelined_delete(*keys):
-    p = r.pipeline()
-    for key in keys:
-      p.delete(key)
-    result = p.execute()
-    for key, res in zip(keys, result):
-      log.info("Deleting '{0}'... {0}".format(key,
-               Color.wrap('[failure]', Color.FAIL) if not res else
-               Color.wrap('[success]', Color.OKBLUE)))
-
-  pipelined_delete('poplist',
+  pipelined_delete(r,
+                   'poplist',
                    'join:history',
                    'delayed_job:popjoins',
                    'delayed_job:popjoins:known',
