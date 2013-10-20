@@ -17,5 +17,4 @@ class Redis:
     try:
       return self._instance
     except AttributeError:
-      import pdb; pdb.set_trace()
       return Redis(**kwargs)
