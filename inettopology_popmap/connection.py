@@ -7,14 +7,15 @@ import inettopology.util.decorators
 class Redis:
   """ A Redis connection"""
 
-  def __init__(self, redisinfo={'host': 'localhost', 'port': 6379, 'db': 0}):
+  def __init__(self, *redisinfo, **conninfo):
     try:
-      self._instance = redisinfo.instantiate()
-    except AttributeError:
-      self._instance = redis.StrictRedis(**redisinfo)
+      self._instance = redisinfo[0].instantiate()
+    except (AttributeError, IndexError):
+      self._instance = redis.StrictRedis(**conninfo)
 
   def __call__(self, **kwargs):
     try:
       return self._instance
     except AttributeError:
+      import pdb; pdb.set_trace()
       return Redis(**kwargs)
