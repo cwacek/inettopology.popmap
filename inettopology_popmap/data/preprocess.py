@@ -22,6 +22,9 @@ class MaxMindGeoIPReader(object):
       fname = pkg_resources.resource_filename('inettopology_popmap.resources',
                                               'GeoIP.dat')
       self.cc_db = pygeoip.GeoIP(fname, pygeoip.MEMORY_CACHE)
+
+      self._cache = dict()
+
     except IOError, e:
       raise Exception("Failed to open GeoIP database [{0}]".format(e))
     except ImportError:
@@ -29,7 +32,13 @@ class MaxMindGeoIPReader(object):
                       "'pip install pygeoip'")
 
   def lookup_ips(self, ips):
-    return map(self.asn_db.org_by_addr, ips)
+    result = list()
+    for ip in ips:
+      if ip not in self._cache:
+        self._cache[ip] = self.asn_db.org_by_addr(ip)
+      result.append(self._cache[ip])
+
+    return result
 
   def lookup_country_codes(self, ips):
     if isinstance(ips, basestring):

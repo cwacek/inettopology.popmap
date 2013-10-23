@@ -9,6 +9,7 @@ redis_errors = (redis.ConnectionError,
                 redis.ResponseError)
 
 from inettopology import SilentExit
+from inettopology.util.decorators import timeit
 from inettopology.util.general import ProgressTimer, Color
 import inettopology.util.structures as structures
 import inettopology_popmap.data.dbkeys as dbkeys
@@ -29,23 +30,51 @@ def print_unless_seen(text, seenset):
     seenset.add(text)
 
 
+@timeit
 def load_link_pairs(newpairs, geoipdb=None):
+  global lua_push_unique
+
   r = connection.Redis()
 
-  for link in newpairs:
-    if link[0] == link[1]:
-      raise Exception("Should not happen")
-    if not r.exists(dbkeys.delay_key(link[0], link[1])):
-      r.lpush("delayed_job:unassigned_links",
-              dbkeys.delay_key(link[0], link[1]))
-    r.sadd(dbkeys.delay_key(link[0], link[1]), link[2])
+  if lua_push_unique is None:
+    lua_push_unique = r.register_script("""
+      local exists
+      exists = redis.call("EXISTS", KEYS[1])
+      if exists == 0 then
+        redis.call("LPUSH", "delayed_job:unassigned_links", KEYS[1])
+      end
+      redis.call("SADD", KEYS[1], ARGV[1])
+      return redis.status_reply("OK")
+    """)
 
-    r.sadd('iplist', *link)
-    for ip, asn in itertools.izip(link, geoipdb.lookup_ips(link[:2])):
-      r.hmset(dbkeys.ip_key(ip), {'asn': asn})
+  with r.pipeline() as pipe:
 
+    for link in newpairs:
+      if link[0] == link[1]:
+        raise Exception("Should not happen")
+
+      lua_push_unique(
+          keys=[dbkeys.delay_key(link[0], link[1])],
+          args=[link[2]],
+          client=pipe)
+
+      pipe.sadd('iplist', *link[:2])
+      for ip, asn in itertools.izip(link, geoipdb.lookup_ips(link[:2])):
+        pipe.hmset(dbkeys.ip_key(ip), {'asn': asn})
+
+    pipe.execute()
+
+lua_push_unique = None
 
 def parse(args):
+  add_lua = """
+  local sadd_result
+  sadd_result = redis.call("SADD", KEYS[1], ARGV[1])
+  if sadd_result == 1 then
+    redis.call("LPUSH", KEYS[2], ARGV[1])
+  end
+  return sadd_result
+  """
 
   # We don't use this, but it configures the singleton
   connection.Redis(structures.ConnectionInfo(**args.redis))
