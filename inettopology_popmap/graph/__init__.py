@@ -44,6 +44,7 @@ Date: 02/22/202
 import argparse
 
 import inettopology
+import pkg_resources
 from inettopology_popmap import lazy_load
 
 
@@ -120,9 +121,15 @@ def __argparse__(subparser, parents):
 
   create_parser.add_argument(
       "--tor_relays",
-      help="A file containing ip_address of Tor "
-           "relays to use. One per line followed "
-           "by 'asn <relay_asn>'",
+      help="A JSON file containing Tor relays to use as a list "
+           "of objects. Each object should at the minimum contain "
+           "the following keys: `relay_ip`, `pop` (the attach point), "
+           " and `asn`. A document of this type can be created using "
+           "{0}.".format(
+               pkg_resources.resource_filename(
+                   'inettopology_popmap.resources',
+                   'ruby_ip_matcher')),
+      required=True,
       metavar="RELAY_FILE")
 
   create_parser.add_argument(

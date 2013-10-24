@@ -2,6 +2,7 @@ import logging
 log = logging.getLogger(__name__)
 
 import sys
+import json
 import time
 import networkx as nx
 import pkg_resources
@@ -164,36 +165,17 @@ def load_from_redis(r, args):
                    'client-connect-points': int})
 
     pipe = r.pipeline()
-    tor_asns = dict()
     i = 0
 #Obtain the set of Tor relay IPs
-    if args.tor_relays:
-        #relays = dict()
-        log.info("Reading Tor relays from %s... " % args.tor_relays)
-        try:
-            with open(args.tor_relays) as f:
-                relay_ips = []
-                p = r.pipeline()
-                for line in f:
-                    ipline = line.split()
-                    ip = ipline[0]
-                    try:
-                        tor_asns[ip] = ipline[2]
-                    except:
-                        log.info("Couldn't add ASN for %s" % ip)
-                        raise Exception("Couldn't add ASN for %s" % ip)
-                    relay_ips.append(ip)
-                    p.hget('torip', ip)
-                relay_pops = p.execute()
-                p.reset()
+    relays = []
+    log.info("Reading Tor relays from %s... " % args.tor_relays)
+    try:
+        with open(args.tor_relays) as f:
+          for line in f:
+            relays.append(json.loads(line.strip()))
 
-                relays = dict(zip(relay_ips, relay_pops))
-
-        except IOError as e:
-            log.info("Error: [%s]" % e)
-    else:
-        log.info("Reading all Tor relays from Redis...")
-        relays = r.hgetall("torip")
+    except IOError as e:
+        log.info("Error: [%s]" % e)
 
     log.info(Color.wrap("Done", Color.OKBLUE))
 
@@ -202,15 +184,15 @@ def load_from_redis(r, args):
     #Add clients
     if args.num_clients:
 
-        clients_attached, client_attach_points = add_asn_endpoints(
-            vertices,
-            graphlinks,
-            args.client_data,
-            args.num_clients,
-            'client')
+      clients_attached, client_attach_points = add_asn_endpoints(
+          vertices,
+          graphlinks,
+          args.client_data,
+          args.num_clients,
+          'client')
 
-    log.info("Attached {0} clients to {1} attachment points".format(
-        clients_attached, client_attach_points))
+      log.info("Attached {0} clients to {1} attachment points".format(
+          clients_attached, client_attach_points))
 
     log.info("Attaching destinations to graph.")
     #Add dests
@@ -224,7 +206,7 @@ def load_from_redis(r, args):
         dests_attached, dest_attach_points))
 
     protected = set()
-    protected.update(relays.itervalues())
+    protected.update([relay['pop'] for relay in relays])
     protected.update(vertices.keys())
 
     # We want to trim all of the hanging edges of the graph.
@@ -297,19 +279,23 @@ def load_from_redis(r, args):
     log.info(Color.wrapformat("Added [{0}]", Color.OKBLUE, stats['num-pops']))
 
     #Attach the relays
-    for relay_ip, conn_point in relays.iteritems():
+    for relay in relays:
 
-        if conn_point not in vertices:
-            stats.incr('unattachable-relays-count')
-            stats.incr('unattachable-relays', relay_ip)
-            continue
+        if relay['pop'] not in vertices:
+          raise Exception("Matched relay to {0}, but couldn't find it "
+                          "in vertices".format(relay['pop']))
+          stats.incr('unattachable-relays-count')
+          stats.incr('unattachable-relays', relay['relay_ip'])
+          continue
 
-        vertices.add_vertex(relay_ip, nodeid=relay_ip, nodetype='relay',
-                            asn=tor_asns[relay_ip])
+        vertices.add_vertex(relay['relay_ip'],
+                            nodeid=relay['relay_ip'],
+                            nodetype='relay',
+                            **relay)
 
         linkdelays = sorted(
             [delay
-             for edge in r.smembers(dbkeys.Link.intralink(conn_point))
+             for edge in r.smembers(dbkeys.Link.intralink(relay['pop']))
              for delay in r.smembers(dbkeys.delay_key(*eval(edge)))])
 
         try:
@@ -318,10 +304,11 @@ def load_from_redis(r, args):
           deciles = [5 for x in xrange(10)]
           stats.incr('relay-latency-defaulted')
 
-        graphlinks.append(EdgeLink(relay_ip, conn_point, {'latency': deciles}))
+        graphlinks.append(EdgeLink(relay['relay_ip'], relay['pop'],
+                          {'latency': deciles}))
 
         stats.incr('num-relays')
-        tor_vertices.add(relay_ip)
+        tor_vertices.add(relay['relay_ip'])
         i += 1
 
     log.info("Added {0} relays. Did not attach {1} "
