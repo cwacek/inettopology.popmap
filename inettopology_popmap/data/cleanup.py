@@ -7,6 +7,13 @@ import inettopology.util.structures as structures
 from inettopology.util.general import Color
 
 
+def write_failed(result):
+  if not all(result):
+    log.info(Color.wrapformat("[failed]", Color.FAIL))
+  else:
+    log.info(Color.wrapformat("[{0} removed]", Color.OKBLUE, len(result)))
+
+
 def pipelined_delete(r, *keys):
   p = r.pipeline()
   for key in keys:
@@ -23,12 +30,6 @@ def cleanup(args):
   Clean all of the pop and link related information out of the database.
   """
   r = connection.Redis(structures.ConnectionInfo(**args.redis))
-
-  def write_failed(result):
-    if not all(result):
-      log.info(Color.wrapformat("[failed]", Color.FAIL))
-    else:
-      log.info(Color.wrapformat("[{0} removed]", Color.OKBLUE, len(result)))
 
   log.info("Removing IP pop data (may take a while)... ")
   ips = r.smembers('iplist')

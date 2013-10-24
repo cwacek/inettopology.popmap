@@ -131,7 +131,7 @@ def __argparse__(subparser, parents):
       metavar='<log file>')
 
   create_parser.set_defaults(
-      func=lazy_load('core', 'create', check_create_args))
+      func=lazy_load('graph.core', 'create_graph', check_create_args))
 
 
 def check_create_args(args):
@@ -144,7 +144,8 @@ def check_create_args(args):
   thislogger = logging.getLogger(__name__)
 
   logfile = args.log if args.log else '{0}.log'.format(args.save)
-  fh = logging.FileHandler(filename=logfile, level=logging.DEBUG)
+  fh = logging.FileHandler(filename=logfile)
+  fh.setLevel(logging.DEBUG)
   formatter = logging.Formatter(
       '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
   fh.setFormatter(formatter)
@@ -159,8 +160,4 @@ def check_create_args(args):
 
   if not all_if_one(args, "client_data", "num_clients"):
     thislogger.error("'client_data' and 'num_clients' must be given together")
-    raise inettopology.SilentExit()
-
-  if not all_if_one(args, "dest_data", "num_dests"):
-    thislogger.error("'dest_data' and 'num_dests' must be given together")
     raise inettopology.SilentExit()

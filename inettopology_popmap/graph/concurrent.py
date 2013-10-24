@@ -2,13 +2,13 @@ import logging
 log = logging.getLogger(__name__)
 
 import sys
-import pqueue
 import os
 import networkx as nx
 
 import inettopology_popmap.connection as connection
 import inettopology_popmap.data.dbkeys as dbkeys
 from inettopology.util.general import Color, pairwise
+import inettopology_popmap.graph.pqueue
 
 
 class ValleyFreeError(Exception):

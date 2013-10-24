@@ -432,6 +432,8 @@ def _assign_pops(unassigned_list_key, failed_list_key,
         link = r.rpop(unassigned_list_key)
       else:
         link = r.rpoplpush(unassigned_list_key, "delayed_job:processed_links")
+      if link is None:
+        return
       ip1, ip2 = link.split(":")[2:]
       cross_as = different_as(r, dbkeys.ip_key(ip1), dbkeys.ip_key(ip2))
       cross_24 = different_24(r, ip1, ip2)

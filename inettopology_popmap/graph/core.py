@@ -7,7 +7,7 @@ import networkx as nx
 import pkg_resources
 import operator
 import random
-import multiprocess
+import multiprocessing
 
 from inettopology.util.decorators import timeit
 from inettopology.util.general import Color, ProgressTimer
@@ -82,7 +82,7 @@ def create_graph(args):
                 #initargs=(graphpath, SP_KEY, TYPE_KEY, USED_KEY, PATH_KEY, ))
     workers = []
     for x in xrange(2):
-        p = multiprocess.Process(
+        p = multiprocessing.Process(
             target=concurrent.thread_shortest_path,
             args=(graphpath, SP_KEY, TYPE_KEY, USED_KEY, PATH_KEY, USED_KEY, ))
 
@@ -313,7 +313,7 @@ def load_from_redis(r, args):
              for delay in r.smembers(dbkeys.delay_key(*eval(edge)))])
 
         try:
-          deciles = decile_transform(linkdelays, default=5)
+          deciles = graph_objects.decile_transform(linkdelays)
         except graph_objects.EmptyListError:
           deciles = [5 for x in xrange(10)]
           stats.incr('relay-latency-defaulted')
@@ -354,7 +354,7 @@ def load_from_redis(r, args):
                  for delay in r.smembers(dbkeys.delay_key(*eval(edge)))])
 
             try:
-              latency = decile_transform(linkdelays)
+              latency = graph_objects.decile_transform(linkdelays)
             except graph_objects.EmptyListError:
               latency = float(r.get("graph:collapsed:%s" %
                                     (dbkeys.Link.interlink(pop1, pop2))))
@@ -437,7 +437,7 @@ def add_alexa_destinations(vertex_list, linklist, count):
              for delay in r.smembers(dbkeys.delay_key(*eval(edge)))])
 
         try:
-          latency = decile_transform(linkdelays)
+          latency = graph_objects.decile_transform(linkdelays)
         except graph_objects.EmptyListError:
           latency = [5 for x in xrange(10)]
 
@@ -514,7 +514,7 @@ def add_asn_endpoints(vertex_list, linklist, datafile, count, endpointtype):
                      for delay in r.smembers(dbkeys.delay_key(*eval(edge)))])
 
                 try:
-                  latency = decile_transform(linkdelays)
+                  latency = graph_objects.decile_transform(linkdelays)
                 except graph_objects.EmptyListError:
                   latency = [5 for x in xrange(10)]
 
@@ -591,16 +591,3 @@ def find_pop_for_asn(asn):
              for pop in pops]
 
   return sorted(popsize, key=operator.itemgetter(0))[-1][1]
-
-
-def decile_transform(input_list, default=0):
-  sorted_list = sorted(input_list)
-
-  deciles = list()
-  interval = len(sorted_list) / 10
-
-  if len(sorted_list) == 0:
-    raise graph_objects.EmptyListError()
-  else:
-    for decile in xrange(10):
-      deciles[decile] = sorted_list[decile * interval]
