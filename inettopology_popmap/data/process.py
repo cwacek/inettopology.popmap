@@ -66,15 +66,8 @@ def load_link_pairs(newpairs, geoipdb=None):
 
 lua_push_unique = None
 
+
 def parse(args):
-  add_lua = """
-  local sadd_result
-  sadd_result = redis.call("SADD", KEYS[1], ARGV[1])
-  if sadd_result == 1 then
-    redis.call("LPUSH", KEYS[2], ARGV[1])
-  end
-  return sadd_result
-  """
 
   # We don't use this, but it configures the singleton
   connection.Redis(structures.ConnectionInfo(**args.redis))
