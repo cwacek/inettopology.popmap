@@ -170,7 +170,7 @@ def load_from_redis(r, args):
     log.info("Reading Tor relays from %s... " % args.tor_relays)
     try:
         with open(args.tor_relays) as f:
-          relays = json.loads(f)
+          relays = json.load(f)
 
     except IOError as e:
         log.info("Error: [%s]" % e)
@@ -394,8 +394,9 @@ def add_alexa_destinations(vertex_list, linklist, count):
     """
     r = connection.Redis()
     attached = 0
-    with pkg_resources.resource('inettopology_popmap.resources',
-                                'alexa_top_dests.txt') as destlist:
+    with pkg_resources.resource_stream(
+            'inettopology_popmap.resources',
+            'alexa_top_dests.txt') as destlist:
 
       for line in destlist:
         url, ip = line.split()
