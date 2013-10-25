@@ -16,6 +16,7 @@ import inettopology_popmap.connection as connection
 import inettopology_popmap.data.dbkeys as dbkeys
 from inettopology_popmap.graph.objects import (
     LinkDict, EdgeLink, VertexList, Stats)
+import inettopology_popmap.graph.util as util
 import inettopology_popmap.graph.objects as graph_objects
 import inettopology_popmap.graph.datautil as datautil
 import inettopology_popmap.graph.concurrent as concurrent
@@ -201,7 +202,7 @@ def load_from_redis(r, args):
             graphlinks,
             args.num_dests)
 
-    log.info("Attached %s dests to %s attachment points".format(
+    log.info("Attached {0} dests to {0} attachment points".format(
         dests_attached, dest_attach_points))
 
     protected = set()
@@ -270,7 +271,7 @@ def load_from_redis(r, args):
         vertices.add_vertex(pop,
                             nodeid=pop,
                             nodetype='pop',
-                            asn=r.hget(dbkeys.POP.asn(pop)))
+                            asn=r.get(dbkeys.POP.asn(pop)))
 
         stats.incr('num-pops')
         i += 1
@@ -292,14 +293,14 @@ def load_from_redis(r, args):
                             nodetype='relay',
                             **relay)
 
-        linkdelays = sorted(
-            [delay
-             for edge in r.smembers(dbkeys.Link.intralink(relay['pop']))
-             for delay in r.smembers(dbkeys.delay_key(*eval(edge)))])
+        linkdelays = [
+            delay
+            for edge in r.smembers(dbkeys.Link.intralink(relay['pop']))
+            for delay in r.smembers(dbkeys.delay_key(*eval(edge)))]
 
         try:
-          deciles = graph_objects.decile_transform(linkdelays)
-        except graph_objects.EmptyListError:
+          deciles = util.decile_transform(linkdelays)
+        except util.EmptyListError:
           deciles = [5 for x in xrange(10)]
           stats.incr('relay-latency-defaulted')
 
@@ -334,14 +335,14 @@ def load_from_redis(r, args):
                 continue
 
             linkkey = dbkeys.Link.interlink(pop1, pop2)
-            linkdelays = sorted(
-                [delay
-                 for edge in r.smembers(linkkey)
-                 for delay in r.smembers(dbkeys.delay_key(*eval(edge)))])
+            linkdelays = [
+                delay
+                for edge in r.smembers(linkkey)
+                for delay in r.smembers(dbkeys.delay_key(*eval(edge)))]
 
             try:
-              latency = graph_objects.decile_transform(linkdelays)
-            except graph_objects.EmptyListError:
+              latency = util.decile_transform(linkdelays)
+            except util.EmptyListError:
               latency = float(r.get("graph:collapsed:%s" %
                                     (dbkeys.Link.interlink(pop1, pop2))))
             graphlinks.append(EdgeLink(pop1, pop2, {'latency': latency}))
@@ -394,6 +395,7 @@ def add_alexa_destinations(vertex_list, linklist, count):
     """
     r = connection.Redis()
     attached = 0
+    pops = set()
     with pkg_resources.resource_stream(
             'inettopology_popmap.resources',
             'alexa_top_dests.txt') as destlist:
@@ -401,16 +403,18 @@ def add_alexa_destinations(vertex_list, linklist, count):
       for line in destlist:
         url, ip = line.split()
 
-        db_ip_pop = dbkeys.get_pop()
+        db_ip_pop = dbkeys.get_pop(ip)
 
         if db_ip_pop is None:
           log.warn("Couldn't attach {0} with ip {1}. No matching IP found"
                    .format(url, ip))
+          continue
 
         nodeid = "dest_{0}".format(ip.replace('.', '_'))
         if nodeid in vertex_list:
           continue  # Don't add the same url twice
 
+        pops.add(db_ip_pop)
         vertex_list.add_vertex(nodeid,
                                nodeid=nodeid,
                                nodetype="dest",
@@ -418,14 +422,14 @@ def add_alexa_destinations(vertex_list, linklist, count):
 
         linkkey = dbkeys.Link.intralink(db_ip_pop)
 
-        linkdelays = sorted(
-            [delay
-             for edge in r.smembers(linkkey)
-             for delay in r.smembers(dbkeys.delay_key(*eval(edge)))])
+        linkdelays = [
+            delay
+            for edge in r.smembers(linkkey)
+            for delay in r.smembers(dbkeys.delay_key(*eval(edge)))]
 
         try:
-          latency = graph_objects.decile_transform(linkdelays)
-        except graph_objects.EmptyListError:
+          latency = util.decile_transform(linkdelays)
+        except util.EmptyListError:
           latency = [5 for x in xrange(10)]
 
         linklist.append(
@@ -436,6 +440,7 @@ def add_alexa_destinations(vertex_list, linklist, count):
         attached += 1
         if attached >= count:
           break
+    return (attached, len(pops))
 
 
 def add_asn_endpoints(vertex_list, linklist, datafile, count, endpointtype):
@@ -495,14 +500,14 @@ def add_asn_endpoints(vertex_list, linklist, datafile, count, endpointtype):
                                        nodetype=endpointtype, asn=asn)
                 linkkey = dbkeys.Link.intralink(data[0])
 
-                linkdelays = sorted(
-                    [delay
-                     for edge in r.smembers(linkkey)
-                     for delay in r.smembers(dbkeys.delay_key(*eval(edge)))])
+                linkdelays = [
+                    delay
+                    for edge in r.smembers(linkkey)
+                    for delay in r.smembers(dbkeys.delay_key(*eval(edge)))]
 
                 try:
-                  latency = graph_objects.decile_transform(linkdelays)
-                except graph_objects.EmptyListError:
+                  latency = util.decile_transform(linkdelays)
+                except util.EmptyListError:
                   latency = [5 for x in xrange(10)]
 
                 linklist.append(EdgeLink(node_id(asn, j),

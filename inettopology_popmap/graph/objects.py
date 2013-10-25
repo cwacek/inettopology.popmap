@@ -5,26 +5,10 @@ import sys
 import itertools
 
 import inettopology_popmap.connection as connection
+from inettopology_popmap.graph.util import decile_transform
 from inettopology_popmap.data.cleanup import write_failed
 from inettopology.util.general import ProgressTimer, Color
 import inettopology_popmap.data.dbkeys as dbkeys
-
-
-def decile_transform(input_list):
-  sorted_list = sorted(input_list)
-
-  deciles = list()
-  interval = len(sorted_list) / 10
-
-  if len(sorted_list) == 0:
-    raise EmptyListError()
-  else:
-    for decile in xrange(10):
-      deciles[decile] = sorted_list[decile * interval]
-
-
-class EmptyListError(Exception):
-    pass
 
 
 class ASNNotKnown(Exception):
@@ -157,32 +141,33 @@ class LinkDict(dict):
 
         try:
           #side1_delay = median(get_delays(dbkeys.Link.interlink(node, side1)))
-          side1_delays = sorted(
-              [delay
+          side1_delays = decile_transform(
+              [float(delay)
                for edge in r.smembers(dbkeys.Link.interlink(node, side1))
                for delay in r.smembers(dbkeys.delay_key(*eval(edge)))])
         except:
-          side1_delay = r.get("graph:collapsed:%s" %
-                              (dbkeys.Link.interlink(node, side1)))
+          side1_delays = eval(r.get("graph:collapsed:%s" %
+                              (dbkeys.Link.interlink(node, side1))))
         try:
           #side2_delay = median(get_delays(dbkeys.Link.interlink(node, side2)))
-          side2_delays = sorted(
-              [delay
+          side2_delays = decile_transform(
+              [float(delay)
                for edge in r.smembers(dbkeys.Link.interlink(node, side2))
                for delay in r.smembers(dbkeys.delay_key(*eval(edge)))])
         except:
-          side2_delay = r.get("graph:collapsed:%s" %
-                              (dbkeys.Link.interlink(node, side2)))
+          side2_delays = eval(r.get("graph:collapsed:%s" %
+                              (dbkeys.Link.interlink(node, side2))))
 
-        combined_delays = decile_transform(
-            [comb for comb
-             in itertools.imap(sum, side1_delays, side2_delays)])
+        combined_delays = [s1 + s2
+                           for s1 in side1_delays
+                           for s2 in side2_delays]
 
-        r.set('graph:collapsed:%s' % (dbkeys.Link.interlink(*list(connections))),
-              combined_delays)
+        r.set('graph:collapsed:%s'
+              % (dbkeys.Link.interlink(*list(connections))),
+              decile_transform(combined_delays))
 
-        clogout.write("Collapsed %s [%s ms] %s [%s ms] %s\n" %
-                      (side1, side1_delay, node, side2_delay, side2))
+        clogout.write("Collapsed %s <-> %s <-> %s\n" %
+                      (side1, node, side2))
 
         collapsable = True
 
