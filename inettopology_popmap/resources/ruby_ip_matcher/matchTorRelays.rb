@@ -173,7 +173,8 @@ relays.each_with_index do |relay,i|
     popInfo[:fp] = relay['f']
     popInfo[:relay_ip] = addr
     popInfo[:match_bits] = match.bits
-    puts(JSON.generate(popInfo, {object_nl: 1 != relays.length - 1 ? ',' : ''} ))
+    print(JSON.generate(popInfo))
+    print(",\n") if i != relays.length - 1
     stats[:matched] += 1
     # break out if we've found all the relays we need to find.
     break

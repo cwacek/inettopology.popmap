@@ -167,15 +167,14 @@ def load_from_redis(r, args):
     pipe = r.pipeline()
     i = 0
 #Obtain the set of Tor relay IPs
-    relays = []
     log.info("Reading Tor relays from %s... " % args.tor_relays)
     try:
         with open(args.tor_relays) as f:
-          for line in f:
-            relays.append(json.loads(line.strip()))
+          relays = json.loads(f)
 
     except IOError as e:
         log.info("Error: [%s]" % e)
+        raise
 
     log.info(Color.wrap("Done", Color.OKBLUE))
 
