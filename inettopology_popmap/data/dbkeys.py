@@ -124,6 +124,10 @@ class Link:
     return "links:intra:%s" % a
 
   @staticmethod
+  def interlink_keys():
+    return "meta:interlink_keys"
+
+  @staticmethod
   def unassigned():
     return "delayed_job:unassigned_links"
 

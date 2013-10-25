@@ -38,10 +38,39 @@ class DuplicateVertex(Exception):
 class LinkDict(dict):
   def __init__(self, r):
     logging.info("Initializing Link Dictionary...")
-    self._links = r.keys("links:inter:*")
+    if not r.exists(dbkeys.Link.interlink_keys()):
+      logging.info("Building interlinks meta key")
+      links = r.keys("links:inter:*")
+
+      batch = []
+      for i, link in enumerate(links):
+        if i % 100 == 0:
+          if len(batch) > 0:
+            r.lpush(dbkeys.Link.interlink_keys(), *batch)
+          log.info("Pushed {0}/{1} links to meta key"
+                   .format(i, len(links)))
+          batch = []
+
+        batch.append(link)
+
     self._max_degree = (-1, 0)
 
-    for link in self._links:
+    rpoplpush_keylist = r.register_script("""
+    local link
+    link  = redis.call("RPOPLPUSH", KEYS[1], KEYS[1])
+    if redis.call("EXISTS", link) == 0 then
+      redis.call("LPOP", KEYS[1])
+    end
+    return link
+    """)
+
+    total_links = r.llen(dbkeys.Link.interlink_keys())
+    for i in xrange(total_links):
+      link = rpoplpush_keylist(keys=[dbkeys.Link.interlink_keys()])
+
+      if i % 1000 == 0:
+        log.info("Loaded {0}/{1} links".format(i, total_links))
+
       link_eps = link.split(":")[2:]
       try:
         self[link_eps[0]].add(link_eps[1])

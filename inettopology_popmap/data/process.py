@@ -367,6 +367,9 @@ def store_link(r, link, pop1, pop2=None, pipe=None, multi=False):
     p.sadd(dbkeys.POP.neighbors(pop2), pop1)
     p.sadd(dbkeys.Link.interlink(pop1, pop2),
            *link if multi else [dbkeys.Link.ensure_dbsafe(link)])
+    if not r.exists(dbkeys.Link.interlink(pop1, pop2)):
+      p.lpush(dbkeys.Link.interlink_keys(),
+              dbkeys.Link.interlink(pop1, pop2))
   else:
     p.sadd(dbkeys.Link.intralink(pop1),
            *link if multi else [dbkeys.Link.ensure_dbsafe(link)])
