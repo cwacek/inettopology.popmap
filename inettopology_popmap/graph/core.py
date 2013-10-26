@@ -271,7 +271,8 @@ def load_from_redis(r, args):
         vertices.add_vertex(pop,
                             nodeid=pop,
                             nodetype='pop',
-                            asn=r.get(dbkeys.POP.asn(pop)))
+                            asn=r.get(dbkeys.POP.asn(pop)),
+                            countries=r.smembers(dbkeys.POP.countries(pop)))
 
         stats.incr('num-pops')
         i += 1

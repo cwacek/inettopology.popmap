@@ -2,12 +2,11 @@ import logging
 log = logging.getLogger(__name__)
 
 import sys
-import itertools
 
 import inettopology_popmap.connection as connection
 from inettopology_popmap.graph.util import decile_transform
 from inettopology_popmap.data.cleanup import write_failed
-from inettopology.util.general import ProgressTimer, Color
+from inettopology.util.general import ProgressTimer, Color, pairwise
 import inettopology_popmap.data.dbkeys as dbkeys
 
 
@@ -124,9 +123,16 @@ class LinkDict(dict):
         n += 1
 
         asns = [r.get(dbkeys.POP.asn(x)) for x in connections | set([node])]
+        countries = [r.smembers(dbkeys.POP.countries(x))
+                     for x in connections | set([node])]
 
         same_asn = reduce(lambda x, y: x if x == y else False, asns)
-        if (same_asn is False or node in protected):
+        same_country = True
+        for x, y in pairwise(countries):
+          if x & y != x:
+            same_country = False
+
+        if (same_asn is False or same_country is False or node in protected):
           ignoreable.update(connections | set([node]))
           continue
 
