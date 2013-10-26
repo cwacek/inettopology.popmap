@@ -55,6 +55,15 @@ class LinkDict(dict):
         log.info("Loaded {0}/{1} links".format(i, total_links))
 
       link_eps = link.split(":")[2:]
+# Look for things without ASNs and remove them
+      asn1 = r.get(dbkeys.POP.asn(link_eps[0]))
+      if asn1 == 'None':
+        continue
+
+      asn2 = r.get(dbkeys.POP.asn(link_eps[1]))
+      if asn2 == 'None':
+        continue
+
       try:
         self[link_eps[0]].add(link_eps[1])
         if len(self[link_eps[0]]) > self._max_degree[1]:
@@ -194,7 +203,13 @@ class VertexList(dict):
 
     def nx_tuple_iter(self):
       for node in self:
-        yield (node, self[node])
+        attrs = {}
+        for attr, val in self[node].iteritems():
+          if isinstance(val, (set)):
+            attrs[attr] = ",".join(tuple(val))
+          else:
+            attrs[attr] = str(val)
+        yield (node, attrs)
 
     def attrs_for(self, vid):
       """ Return the attribute dictionary for vertex 'vid'. """
@@ -240,7 +255,14 @@ class EdgeLink(object):
     self.attrs[name] = value
 
   def nx_tuple(self):
-    return (self.pair[0], self.pair[1], self.attrs)
+    attrs = {}
+    for attr, val in self.attrs.iteritems():
+      if isinstance(val, (list, tuple, set)):
+        attrs[attr] = ",".join(map(str, tuple(val)))
+      else:
+        attrs[attr] = str(val)
+
+    return (self.pair[0], self.pair[1], attrs)
 
 
 class Stats(dict):

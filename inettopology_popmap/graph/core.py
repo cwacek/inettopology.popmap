@@ -344,8 +344,8 @@ def load_from_redis(r, args):
             try:
               latency = util.decile_transform(linkdelays)
             except util.EmptyListError:
-              latency = float(r.get("graph:collapsed:%s" %
-                                    (dbkeys.Link.interlink(pop1, pop2))))
+              latency = eval(r.get("graph:collapsed:%s" %
+                                   (dbkeys.Link.interlink(pop1, pop2))))
             graphlinks.append(EdgeLink(pop1, pop2, {'latency': latency}))
 
             stats.incr('num-links')
@@ -360,7 +360,7 @@ def load_from_redis(r, args):
 
     log.info("Making Graph")
     gr = nx.Graph()
-    gr.add_nodes_from(vertices.nx_tuple_iter)
+    gr.add_nodes_from(vertices.nx_tuple_iter())
     gr.add_edges_from([edge.nx_tuple() for edge in graphlinks])
 
     try:
@@ -372,7 +372,7 @@ def load_from_redis(r, args):
     bfs_node_gen = (node for pair in bfs_edges for node in pair)
     subgraph = gr.subgraph(bfs_node_gen)
 
-    log.info("BFS reduced graph from %s to %s vertices".format(
+    log.info("BFS reduced graph from {0} to {1} vertices".format(
              len(gr), len(subgraph)))
 
     log.info("Writing data file")
