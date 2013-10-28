@@ -396,6 +396,7 @@ def add_alexa_destinations(vertex_list, linklist, count):
     """
     r = connection.Redis()
     attached = 0
+    failed = 0
     pops = set()
     with pkg_resources.resource_stream(
             'inettopology_popmap.resources',
@@ -407,8 +408,9 @@ def add_alexa_destinations(vertex_list, linklist, count):
         db_ip_pop = dbkeys.get_pop(ip)
 
         if db_ip_pop is None:
-          log.warn("Couldn't attach {0} with ip {1}. No matching IP found"
-                   .format(url, ip))
+          log.debug("Couldn't attach {0} with ip {1}. No matching IP found"
+                    .format(url, ip))
+          failed += 1
           continue
 
         nodeid = "dest_{0}".format(ip.replace('.', '_'))
@@ -439,6 +441,11 @@ def add_alexa_destinations(vertex_list, linklist, count):
                      {'latency': latency}))
 
         attached += 1
+
+        if attached % 10 == 0:
+          log.info("Attached {0} destinations. Couldn't attach {1}"
+                   .format(attached, failed))
+
         if attached >= count:
           break
     return (attached, len(pops))
