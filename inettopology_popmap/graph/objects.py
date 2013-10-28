@@ -2,6 +2,7 @@ import logging
 log = logging.getLogger(__name__)
 
 import sys
+import unicodedata
 
 import inettopology_popmap.connection as connection
 from inettopology_popmap.graph.util import decile_transform
@@ -208,7 +209,8 @@ class VertexList(dict):
           if isinstance(val, (set)):
             attrs[attr] = ",".join(tuple(val))
           else:
-            attrs[attr] = str(val)
+            attrs[attr] = unicodedata.normalize("NFKD", str(val)).encode(
+                'ascii', 'ignore')
         yield (node, attrs)
 
     def attrs_for(self, vid):
