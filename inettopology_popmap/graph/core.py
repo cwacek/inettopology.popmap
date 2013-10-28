@@ -283,14 +283,14 @@ def load_from_redis(r, args):
     for relay in relays:
 
         if relay['pop'] not in vertices:
-          raise Exception("Matched relay to {0}, but couldn't find it "
-                          "in vertices".format(relay['pop']))
+          log.warn("Matched relay to {0}, but couldn't find it "
+                   "in vertices".format(relay['pop']))
           stats.incr('unattachable-relays-count')
           stats.incr('unattachable-relays', relay['relay_ip'])
           continue
 
-        vertices.add_vertex(relay['relay_ip'],
-                            nodeid=relay['relay_ip'],
+        vertices.add_vertex(relay['fp'],
+                            nodeid=relay['fp'],
                             nodetype='relay',
                             **relay)
 
