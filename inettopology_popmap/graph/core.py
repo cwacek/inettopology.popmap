@@ -14,6 +14,7 @@ from inettopology.util.decorators import timeit
 from inettopology.util.general import Color, ProgressTimer
 import inettopology_popmap.connection as connection
 import inettopology_popmap.data.dbkeys as dbkeys
+import inettopology_popmap.data.preprocess as preprocess
 from inettopology_popmap.graph.objects import (
     LinkDict, EdgeLink, VertexList, Stats)
 import inettopology_popmap.graph.util as util
@@ -395,6 +396,7 @@ def add_alexa_destinations(vertex_list, linklist, count):
     Add potential destination endpoints based on the top 10000 destinations
     """
     r = connection.Redis()
+    aslookup = preprocess.MaxMindGeoIPReader.Instance()
     attached = 0
     failed = 0
     pops = set()
@@ -417,11 +419,18 @@ def add_alexa_destinations(vertex_list, linklist, count):
         if nodeid in vertex_list:
           continue  # Don't add the same url twice
 
+        countries = r.smembers(dbkeys.POP.countries(db_ip_pop))
+        if len(countries) == 1:
+          country = countries.pop()
+        else:
+          country = aslookup.lookup_country_codes(ip)[0]
+
         pops.add(db_ip_pop)
         vertex_list.add_vertex(nodeid,
                                nodeid=nodeid,
                                nodetype="dest",
-                               url=url)
+                               url=url,
+                               country=country)
 
         linkkey = dbkeys.Link.intralink(db_ip_pop)
 
