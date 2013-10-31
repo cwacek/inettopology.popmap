@@ -208,10 +208,11 @@ class VertexList(dict):
         for attr, val in self[node].iteritems():
           if isinstance(val, (set)):
             attrs[attr] = ",".join(tuple(val))
+          elif isinstance(val, (basestring)):
+            attrs[attr] = val.decode("ascii", "ignore")
           else:
-            unicode_val = unicodedata.normalize("NFKD",
-                                                unicode(val, 'utf8', 'ignore'))
-            attrs[attr] = unicode_val.encode('ascii', 'ignore')
+            attrs[attr] = "{0}".format(val)
+
         yield (node, attrs)
 
     def attrs_for(self, vid):

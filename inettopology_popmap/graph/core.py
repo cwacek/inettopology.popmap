@@ -360,6 +360,10 @@ def load_from_redis(r, args):
              .format(stats['num-links']))
 
     log.info("Making Graph")
+
+    with open("vertices.dat", 'w') as vertout:
+        vertices.write(vertout)
+
     gr = nx.Graph()
     gr.add_nodes_from(vertices.nx_tuple_iter())
     gr.add_edges_from([edge.nx_tuple() for edge in graphlinks])
@@ -378,9 +382,6 @@ def load_from_redis(r, args):
 
     log.info("Writing data file")
     nx.write_graphml(gr, args.reload)
-
-    with open("vertices.dat", 'w') as vertout:
-        vertices.write(vertout)
 
     log.info("Wrote files")
 
