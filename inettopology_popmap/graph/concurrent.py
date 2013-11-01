@@ -8,7 +8,7 @@ import networkx as nx
 import inettopology_popmap.connection as connection
 import inettopology_popmap.data.dbkeys as dbkeys
 from inettopology.util.general import Color, pairwise
-import inettopology_popmap.graph.pqueue
+import inettopology_popmap.graph.pqueue as pqueue
 
 
 class ValleyFreeError(Exception):
@@ -20,6 +20,7 @@ def redirect_output():
   log_out = open('pool_%s.log' % os.getpid(), 'w')
   sys.stderr = log_out
   sys.stdout = log_out
+  return log_out
 
 
 def thread_shortest_path(graphpath, sp_key, type_key,
