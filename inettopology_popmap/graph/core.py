@@ -157,10 +157,10 @@ def load_from_redis(r, args):
     graphattrs = dict()
     graphattrs['latency'] = []
     stats = Stats({'non-pop-trim': int,
-                   'unattachable-relays-count': int,
-                   'relay-latency-defaulted': int,
-                   'unattachable-relays': set,
-                   'num-relays': int,
+                   'unattachable-poi-count': int,
+                   'poi-latency-defaulted': int,
+                   'unattachable-poi': set,
+                   'num-pois': int,
                    'num-pops': int,
                    'num-links': int,
                    'num-clients': int,
@@ -169,10 +169,10 @@ def load_from_redis(r, args):
     pipe = r.pipeline()
     i = 0
 #Obtain the set of Tor relay IPs
-    log.info("Reading Tor relays from %s... " % args.tor_relays)
+    log.info("Reading Tor relays from %s... " % args.pointsofinterest)
     try:
-        with open(args.tor_relays) as f:
-          relays = json.load(f)
+        with open(args.pointsofinterest) as f:
+          PoIs = json.load(f)
 
     except IOError as e:
         log.info("Error: [%s]" % e)
@@ -207,7 +207,7 @@ def load_from_redis(r, args):
         dests_attached, dest_attach_points))
 
     protected = set()
-    protected.update([relay['pop'] for relay in relays])
+    protected.update([poi['pop'] for poi in PoIs])
     protected.update(vertices.keys())
 
     # We want to trim all of the hanging edges of the graph.
@@ -281,45 +281,45 @@ def load_from_redis(r, args):
     log.info(Color.wrapformat("Added [{0}]", Color.OKBLUE, stats['num-pops']))
 
     #Attach the relays
-    for relay in relays:
+    for poi in PoIs:
 
-        if relay['pop'] not in vertices:
+        if poi['pop'] not in vertices:
           log.warn("Matched relay to {0}, but couldn't find it "
-                   "in vertices".format(relay['pop']))
-          stats.incr('unattachable-relays-count')
-          stats.incr('unattachable-relays', relay['relay_ip'])
+                   "in vertices".format(poi['pop']))
+          stats.incr('unattachable-poi-count')
+          stats.incr('unattachable-poi', poi['id'])
           continue
 
-        vertices.add_vertex(relay['fp'],
-                            nodeid=relay['fp'],
+        vertices.add_vertex(poi['id'],
+                            nodeid=poi['id'],
                             nodetype='relay',
-                            **relay)
+                            **poi)
 
         linkdelays = [
             delay
-            for edge in r.smembers(dbkeys.Link.intralink(relay['pop']))
+            for edge in r.smembers(dbkeys.Link.intralink(poi['pop']))
             for delay in r.smembers(dbkeys.delay_key(*eval(edge)))]
 
         try:
           deciles = util.decile_transform(linkdelays)
         except util.EmptyListError:
           deciles = [5 for x in xrange(10)]
-          stats.incr('relay-latency-defaulted')
+          stats.incr('poi-latency-defaulted')
 
-        graphlinks.append(EdgeLink(relay['relay_ip'], relay['pop'],
+        graphlinks.append(EdgeLink(poi['id'], poi['pop'],
                           {'latency': deciles}))
 
-        stats.incr('num-relays')
-        tor_vertices.add(relay['relay_ip'])
+        stats.incr('num-pois')
+        tor_vertices.add(poi['id'])
         i += 1
 
-    log.info("Added {0} relays. Did not attach {1} "
+    log.info("Added {0} PoIs. Did not attach {1} "
              "whose connection point was not linked to anything."
-             .format(stats['num-relays'],
-                     stats['unattachable-relays-count'])
+             .format(stats['num-pois'],
+                     stats['unattachable-poi-count'])
              )
-    log.info("Relays defaulted to 5ms links: [{0}]".format(
-        stats['relay-latency-defaulted']))
+    log.info("PoIs defaulted to 5ms links: [{0}]".format(
+        stats['poi-latency-defaulted']))
 
     pipe.execute()
 
@@ -377,11 +377,13 @@ def load_from_redis(r, args):
     bfs_node_gen = (node for pair in bfs_edges for node in pair)
     subgraph = gr.subgraph(bfs_node_gen)
 
+    assert nx.is_connected(subgraph)
+
     log.info("BFS reduced graph from {0} to {1} vertices".format(
              len(gr), len(subgraph)))
 
     log.info("Writing data file")
-    nx.write_graphml(gr, args.reload)
+    nx.write_graphml(subgraph, args.reload)
 
     log.info("Wrote files")
 
@@ -431,6 +433,7 @@ def add_alexa_destinations(vertex_list, linklist, count):
                                nodeid=nodeid,
                                nodetype="dest",
                                url=url,
+                               asn=r.get(dbkeys.POP.asn(db_ip_pop)),
                                country=country)
 
         linkkey = dbkeys.Link.intralink(db_ip_pop)

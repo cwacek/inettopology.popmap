@@ -2,7 +2,6 @@ import logging
 log = logging.getLogger(__name__)
 
 import sys
-import unicodedata
 
 import inettopology_popmap.connection as connection
 from inettopology_popmap.graph.util import decile_transform

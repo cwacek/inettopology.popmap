@@ -120,16 +120,16 @@ def __argparse__(subparser, parents):
       dest="num_dests")
 
   create_parser.add_argument(
-      "--tor_relays",
-      help="A JSON file containing Tor relays to use as a list "
+      "--pointsofinterest",
+      help="A JSON file containing points of interest to use as a list "
            "of objects. Each object should at the minimum contain "
-           "the following keys: `relay_ip`, `pop` (the attach point), "
-           " and `asn`. A document of this type can be created using "
+           "the following keys: `id`, `pop` (the attach point), "
+           " and `asn`. A document of this type for Tor relays can "
+           "be created using "
            "{0}.".format(
                pkg_resources.resource_filename(
                    'inettopology_popmap.resources',
                    'ruby_ip_matcher')),
-      required=True,
       metavar="RELAY_FILE")
 
   create_parser.add_argument(
@@ -167,4 +167,8 @@ def check_create_args(args):
 
   if not all_if_one(args, "client_data", "num_clients"):
     thislogger.error("'client_data' and 'num_clients' must be given together")
+    raise inettopology.SilentExit()
+
+  if args.reload and not args.pointsofinterest:
+    thislogger.Error("pointsofinterest is required when loading the graph")
     raise inettopology.SilentExit()
