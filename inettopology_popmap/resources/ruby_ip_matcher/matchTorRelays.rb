@@ -58,14 +58,16 @@ EOS
   opt :live, "Load the latest data from Onionoo"
   opt :local, "Load JSON from a file previously downloaded from Onionoo",
       :type => :string
+  opt :other, "Match IPs from another data file (they should be the first item per line)", :type => :string
   opt :redis, "The host:port combination to use to connect to Redis",
       :default => "localhost:6379"
   opt :v, "Be verbose"
   opt :f, "Force"
 end
 
-Trollop::die :live, "Either 'live' or 'local' must be specified" if not (opts[:live] or opts[:local])
-Trollop::die :local, "'local' cannot be specified if 'live' was requested" if opts[:live] and opts[:local]
+Trollop::die :live, "Either 'live' or 'local' must be specified" if not (opts[:live] or opts[:local] or opts[:other])
+Trollop::die :local, "'local' cannot be specified if 'live' was requested" if opts[:live] and (opts[:local] or opts[:other])
+Trollop::die :other, "'other' cannot be specified if 'live' or 'local' was specified" if opts[:other] and (opts[:live] or opts[:local])
 Trollop::die :redis, "Invalid format" if (opts[:redis] =~ /[a-zA-Z0-9\.]+:[0-9]+/).nil?
 $log.level = Logger::DEBUG if opts[:v]
 
@@ -79,25 +81,25 @@ def segmentIPs(redis)
   searcher = Searcher.new $log
 
   ips.each_with_index do |ip,i|
-    ipaddr = IPAddress::IPv4.new(ip)
+    #ipaddr = IPAddress::IPv4.new(ip)
     searcher.add ip
     $log.debug "Processed #{i}/#{ips.length} ips" if i % 10000 == 0
-  end 
+  end
 
   return searcher
 end
 
 def loadData(opts)
-  if opts[:live] 
+  if opts[:live]
     response = RestClient.get 'https://onionoo.torproject.org/summary'
 
     if response.code != 200
       warn "Failed to grab live data [#{response.code}]"
-      exit 1 
+      exit 1
     end
 
     return JSON.parse response.to_str
-  else 
+  else
     return JSON.parse IO.read(opts[:local])
   end
 end
@@ -134,54 +136,79 @@ searcher = segmentIPs(redis)
 
 stats = {matched: 0, unmatched_pop: 0, unmatched_ip: 0, total: 0}
 
-data = loadData opts
-relays = data['relays'].select {|relay| relay['r'] }
+if not opts[:other]
+  data = loadData opts
+  relays = data['relays'].select {|relay| relay['r'] }
 
-puts "["
-relays.each_with_index do |relay,i|
+  puts "["
+  relays.each_with_index do |relay,i|
 
-   #'a' contains an array of IPv4 or IPv6 addresses
-  stats[:total] += 1
-  relay['a'].each do |addr|
-    begin
-      relay_addr = IPAddress::IPv4.new addr
-      next if not relay_addr # this isn't an IPv4 address
-    rescue
-      next
+     #'a' contains an array of IPv4 or IPv6 addresses
+    stats[:total] += 1
+    relay['a'].each do |addr|
+      begin
+        relay_addr = IPAddress::IPv4.new addr
+        next if not relay_addr # this isn't an IPv4 address
+      rescue
+        next
+      end
+      $log.info("Searching for match for #{relay['n']} @#{relay_addr.to_s} [#{i}/#{data['relays'].length}")
+
+      match = searcher.search_slash16(relay_addr) || searcher.search_slash8(relay_addr)
+      if match.nil?
+        $log.warn "No match found for #{addr} even at /8"
+        stats[:unmatched_ip] += 1
+        next
+      end
+
+      $log.info "Found match for #{addr}: #{match.ip} at #{match.bits} bits"
+      popInfo = {ip: match.ip, 
+                 pop: redis.hget("ip:#{match.ip.to_s}",'pop'), 
+                 asn: redis.hget("ip:#{match.ip.to_s}",'asn') 
+                }
+
+      if popInfo[:pop].nil?
+        $log.info "No pop for #{match.ip} available. Will not be included in output."
+        stats[:unmatched_pop] += 1
+        next
+      end
+      popInfo[:nick] = relay['n']
+      popInfo[:fp] = relay['f']
+      popInfo[:relay_ip] = addr
+      popInfo[:match_bits] = match.bits
+      begin
+        print(JSON.generate(popInfo))
+        print(",\n") if i != relays.length - 1
+      rescue
+        next
+      end
+      stats[:matched] += 1
+      # break out if we've found all the relays we need to find.
+      break
+
     end
-    $log.info("Searching for match for #{relay['n']} @#{relay_addr.to_s} [#{i}/#{data['relays'].length}")
+  end
+  puts "]"
+else
+  i = 0
+  File.open(opts[:other], "r").each_line do |line|
+    i += 1
+    ip = IPAddress::IPv4.new line.split()[0]
+    $log.info("Searching for match for #{ip} [#{i}]")
 
-    match = searcher.search_slash16(relay_addr) || searcher.search_slash8(relay_addr)
+    match = searcher.search_slash16(ip) || searcher.search_slash8(ip)
     if match.nil?
-      $log.warn "No match found for #{addr} even at /8" 
+      $log.warn "No match found for #{ip} even at /8"
       stats[:unmatched_ip] += 1
       next
     end
 
-    $log.info "Found match for #{addr}: #{match.ip} at #{match.bits} bits"
-    popInfo = {ip: match.ip, 
-               pop: redis.hget("ip:#{match.ip.to_s}",'pop'), 
-               asn: redis.hget("ip:#{match.ip.to_s}",'asn') 
-              }
+    $log.info "Found match for #{ip}: #{match.ip} at #{match.bits} bits"
 
-    if popInfo[:pop].nil?
-      $log.info "No pop for #{match.ip} available. Will not be included in output."
-      stats[:unmatched_pop] += 1
-      next
-    end
-    popInfo[:nick] = relay['n']
-    popInfo[:fp] = relay['f']
-    popInfo[:relay_ip] = addr
-    popInfo[:match_bits] = match.bits
-    print(JSON.generate(popInfo))
-    print(",\n") if i != relays.length - 1
+    print "#{line} #{match.ip} #{match.bits}"
     stats[:matched] += 1
-    # break out if we've found all the relays we need to find.
-    break
-
   end
 end
-puts "]"
 
 $log.info <<-endmsg
 # relays processed:     #{stats[:total]}

@@ -127,7 +127,7 @@ def create_graph(args):
     core_graph.remove_edges_from(to_remove)
 
     log.info("Re-trimming graph")
-    collapse_graph_in_place(graph)
+    #collapse_graph_in_place(graph)
     log.info("Done")
 
     log.info("Writing core graph... ")
@@ -307,7 +307,8 @@ def load_from_redis(r, args):
           stats.incr('poi-latency-defaulted')
 
         graphlinks.append(EdgeLink(poi['id'], poi['pop'],
-                          {'latency': deciles}))
+                          {'latency': deciles,
+                            'med_latency': deciles[len(deciles)/2]}))
 
         stats.incr('num-pois')
         tor_vertices.add(poi['id'])
@@ -347,7 +348,8 @@ def load_from_redis(r, args):
             except util.EmptyListError:
               latency = eval(r.get("graph:collapsed:%s" %
                                    (dbkeys.Link.interlink(pop1, pop2))))
-            graphlinks.append(EdgeLink(pop1, pop2, {'latency': latency}))
+            graphlinks.append(EdgeLink(pop1, pop2,
+              {'latency': latency, 'med_latency': latency[len(latency)/2]}))
 
             stats.incr('num-links')
             already_processed.add(dbkeys.Link.interlink(pop1, pop2))
@@ -408,13 +410,15 @@ def add_alexa_destinations(vertex_list, linklist, count):
             'alexa_top_dests.txt') as destlist:
 
       for line in destlist:
-        url, ip = line.split()
+        if line[0] == '#':
+          continue
+        ip, url, matched_ip, matched_bits = line.split()
 
-        db_ip_pop = dbkeys.get_pop(ip)
+        db_ip_pop = dbkeys.get_pop(matched_ip)
 
         if db_ip_pop is None:
           log.debug("Couldn't attach {0} with ip {1}. No matching IP found"
-                    .format(url, ip))
+                    .format(url, matched_ip))
           failed += 1
           continue
 
@@ -426,13 +430,14 @@ def add_alexa_destinations(vertex_list, linklist, count):
         if len(countries) == 1:
           country = countries.pop()
         else:
-          country = aslookup.lookup_country_codes(ip)[0]
+          country = aslookup.lookup_country_codes(matched_ip)[0]
 
         pops.add(db_ip_pop)
         vertex_list.add_vertex(nodeid,
                                nodeid=nodeid,
                                nodetype="dest",
                                url=url,
+                               ip=ip,
                                asn=r.get(dbkeys.POP.asn(db_ip_pop)),
                                country=country)
 
@@ -451,7 +456,8 @@ def add_alexa_destinations(vertex_list, linklist, count):
         linklist.append(
             EdgeLink(nodeid,
                      db_ip_pop,
-                     {'latency': latency}))
+                     {'latency': latency,
+                      'med_latency': latency[len(latency)/2]}))
 
         attached += 1
 
@@ -532,7 +538,9 @@ def add_asn_endpoints(vertex_list, linklist, datafile, count, endpointtype):
                   latency = [5 for x in xrange(10)]
 
                 linklist.append(EdgeLink(node_id(asn, j),
-                                data[0], {'latency': latency}))
+                                data[0],
+                                {'latency': latency
+                                 'med_latency': latency[len(latency)/2]}))
                 counter += 1
 
         log.info(Color.wrapformat("Success [{0} attached]", Color.OKBLUE,
