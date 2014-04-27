@@ -4,6 +4,7 @@ setup(
     name="inettopology.popmap",
     version="0.1",
     packages=find_packages(),
+    zip_safe=False,
 
     install_requires=[
         "redis",
@@ -17,7 +18,7 @@ setup(
     },
 
     package_data={
-        'inettopology_popmap.resources': 'resources/*.dat'
+        'inettopology_popmap.resources': ['resources/*.dat']
     },
 
     author="Chris Wacek",
