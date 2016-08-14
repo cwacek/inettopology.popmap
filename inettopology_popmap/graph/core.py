@@ -203,8 +203,8 @@ def load_from_redis(r, args):
             graphlinks,
             args.num_dests)
 
-    log.info("Attached {0} dests to {0} attachment points".format(
-        dests_attached, dest_attach_points))
+    	log.info("Attached {0} dests to {0} attachment points".format(
+        	dests_attached, dest_attach_points))
 
     protected = set()
     protected.update([poi['pop'] for poi in PoIs])
