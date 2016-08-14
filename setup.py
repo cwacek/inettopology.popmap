@@ -18,7 +18,7 @@ setup(
     },
 
     package_data={
-        'inettopology_popmap.resources': ['resources/*.dat']
+        'inettopology_popmap.resources': ['*.dat', '/resources/*.dat']
     },
 
     author="Chris Wacek",
