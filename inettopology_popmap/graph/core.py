@@ -539,7 +539,7 @@ def add_asn_endpoints(vertex_list, linklist, datafile, count, endpointtype):
 
                 linklist.append(EdgeLink(node_id(asn, j),
                                 data[0],
-                                {'latency': latency
+                                {'latency': latency,
                                  'med_latency': latency[len(latency)/2]}))
                 counter += 1
 
