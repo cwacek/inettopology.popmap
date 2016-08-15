@@ -117,7 +117,7 @@ def create_graph(args):
     def rev_tuple(tup):
         return (tup[1], tup[0])
 
-    for edge in core_graph.edges_iter:
+    for edge in core_graph.edges_iter():
         if (not r.sismember(PATH_KEY, edge) and
                 not r.sismember(PATH_KEY, rev_tuple(edge))):
             to_remove.append(edge)
