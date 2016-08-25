@@ -117,7 +117,7 @@ def create_graph(args):
     def rev_tuple(tup):
         return (tup[1], tup[0])
 
-    for edge in core_graph.edges_iter:
+    for edge in core_graph.edges_iter():
         if (not r.sismember(PATH_KEY, edge) and
                 not r.sismember(PATH_KEY, rev_tuple(edge))):
             to_remove.append(edge)
@@ -203,8 +203,8 @@ def load_from_redis(r, args):
             graphlinks,
             args.num_dests)
 
-    log.info("Attached {0} dests to {0} attachment points".format(
-        dests_attached, dest_attach_points))
+    	log.info("Attached {0} dests to {0} attachment points".format(
+        	dests_attached, dest_attach_points))
 
     protected = set()
     protected.update([poi['pop'] for poi in PoIs])
@@ -539,7 +539,7 @@ def add_asn_endpoints(vertex_list, linklist, datafile, count, endpointtype):
 
                 linklist.append(EdgeLink(node_id(asn, j),
                                 data[0],
-                                {'latency': latency
+                                {'latency': latency,
                                  'med_latency': latency[len(latency)/2]}))
                 counter += 1
 
